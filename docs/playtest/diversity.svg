@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="280" viewBox="0 0 760 280">
+<rect width="100%" height="100%" fill="#14121a"/>
+<text x="24" y="32" fill="#f0c040" font-family="sans-serif" font-size="16">五局加速对局的指令种类</text>
+<text x="24" y="94" fill="#f4f0dc" font-family="sans-serif" font-size="16">改规则前</text>
+<rect x="140" y="70" width="336" height="36" fill="#5088d8"/>
+<text x="486" y="94" fill="#f4f0dc" font-family="sans-serif" font-size="16">21</text>
+<text x="24" y="164" fill="#f4f0dc" font-family="sans-serif" font-size="16">改规则后</text>
+<rect x="140" y="140" width="464" height="36" fill="#f0c040"/>
+<text x="614" y="164" fill="#f4f0dc" font-family="sans-serif" font-size="16">29</text>
+</svg>

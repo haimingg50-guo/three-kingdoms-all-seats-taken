@@ -1,0 +1,10 @@
+services:
+  sanguo:
+    build: .
+    ports:
+      - "4317:4317"
+    environment:
+      # 文件名保持不变，已有的 data 目录里的旧档仍能打开。
+      DATABASE_PATH: /data/tianxia.sqlite
+    volumes:
+      - ./data:/data

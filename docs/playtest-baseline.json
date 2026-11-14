@@ -1,0 +1,507 @@
+[
+  {
+    "id": "sim6-day",
+    "label": "真实一天",
+    "turns": 1,
+    "unified": false,
+    "winner": null,
+    "status": "running",
+    "closeReason": null,
+    "deaths": [],
+    "orders": {
+      "recruit": 2,
+      "farm": 6,
+      "develop": 3,
+      "war:march": 3,
+      "search": 1,
+      "store_grain": 1,
+      "watch_sky": 1,
+      "hold_line": 2,
+      "dip:alliance": 1,
+      "raise_clinic": 1,
+      "war:hold": 1
+    },
+    "reliefUses": {
+      "store_grain": 1,
+      "watch_sky": 1,
+      "raise_clinic": 1
+    },
+    "reliefSaved": {
+      "dike": 0,
+      "granary": 0,
+      "clinic": 0
+    },
+    "disasterGrain": 0,
+    "disasterTroops": 0,
+    "weather": {
+      "晴": 1
+    },
+    "disasters": {},
+    "parseRejects": 0,
+    "fuzzRejects": 4,
+    "waste": 0.056,
+    "apSpent": 17,
+    "apCap": 18,
+    "meaningful": 22,
+    "meaningfulPerTurn": 22,
+    "staleTurns": 0,
+    "longestStale": 0,
+    "violations": [],
+    "violationCount": 0,
+    "msTotal": 2.8,
+    "msMax": 2.83,
+    "msAvg": 2.83,
+    "endCities": {
+      "wei": 2,
+      "shu": 2,
+      "wu": 2
+    },
+    "endTroops": {
+      "wei": 1311,
+      "shu": 1288,
+      "wu": 1109
+    },
+    "endGrain": {
+      "wei": 1502,
+      "shu": 1730,
+      "wu": 1630
+    }
+  },
+  {
+    "id": "sim6-a",
+    "label": "加速甲",
+    "turns": 36,
+    "unified": false,
+    "winner": null,
+    "status": "running",
+    "closeReason": null,
+    "deaths": [],
+    "orders": {
+      "recruit": 71,
+      "farm": 171,
+      "develop": 108,
+      "war:march": 33,
+      "search": 45,
+      "dig_canal": 20,
+      "store_grain": 42,
+      "watch_sky": 25,
+      "hold_line": 41,
+      "dip:alliance": 36,
+      "raise_dike": 32,
+      "war:hold": 80,
+      "relieve": 12,
+      "transport": 6,
+      "war:confirm": 12,
+      "war:leave": 8,
+      "drill_prowess": 6,
+      "mend_road": 12,
+      "war:refuse": 11,
+      "raise_clinic": 6,
+      "drill_command": 9
+    },
+    "reliefUses": {
+      "dig_canal": 20,
+      "store_grain": 42,
+      "watch_sky": 25,
+      "raise_dike": 32,
+      "relieve": 12,
+      "mend_road": 12,
+      "raise_clinic": 6
+    },
+    "reliefSaved": {
+      "dike": 0,
+      "granary": 376,
+      "clinic": 0
+    },
+    "disasterGrain": 916,
+    "disasterTroops": 0,
+    "weather": {
+      "晴": 13,
+      "旱": 4,
+      "雾": 8,
+      "雪": 6,
+      "雨": 5
+    },
+    "disasters": {
+      "蝗": 1
+    },
+    "parseRejects": 0,
+    "fuzzRejects": 144,
+    "waste": 0.065,
+    "apSpent": 606,
+    "apCap": 648,
+    "meaningful": 706,
+    "meaningfulPerTurn": 19.61,
+    "staleTurns": 21,
+    "longestStale": 7,
+    "violations": [],
+    "violationCount": 0,
+    "msTotal": 22.2,
+    "msMax": 1.4,
+    "msAvg": 0.62,
+    "endCities": {
+      "wei": 3,
+      "shu": 4,
+      "wu": 1
+    },
+    "endTroops": {
+      "wei": 852,
+      "shu": 1654,
+      "wu": 274
+    },
+    "endGrain": {
+      "wei": 2486,
+      "shu": 7045,
+      "wu": 3795
+    }
+  },
+  {
+    "id": "sim6-b",
+    "label": "加速乙",
+    "turns": 36,
+    "unified": false,
+    "winner": null,
+    "status": "running",
+    "closeReason": null,
+    "deaths": [],
+    "orders": {
+      "recruit": 71,
+      "farm": 156,
+      "develop": 108,
+      "war:march": 33,
+      "search": 41,
+      "raise_dike": 43,
+      "store_grain": 45,
+      "mend_road": 15,
+      "hold_line": 45,
+      "dip:alliance": 36,
+      "watch_sky": 24,
+      "war:confirm": 12,
+      "war:leave": 11,
+      "raise_clinic": 10,
+      "relieve": 6,
+      "war:hold": 80,
+      "transport": 7,
+      "drill_command": 7,
+      "dig_canal": 22,
+      "war:refuse": 8,
+      "drill_prowess": 7
+    },
+    "reliefUses": {
+      "raise_dike": 43,
+      "store_grain": 45,
+      "mend_road": 15,
+      "watch_sky": 24,
+      "raise_clinic": 10,
+      "relieve": 6,
+      "dig_canal": 22
+    },
+    "reliefSaved": {
+      "dike": 91,
+      "granary": 59,
+      "clinic": 41
+    },
+    "disasterGrain": 735,
+    "disasterTroops": 178,
+    "weather": {
+      "雨": 10,
+      "雾": 9,
+      "晴": 11,
+      "旱": 4,
+      "雪": 2
+    },
+    "disasters": {
+      "涝": 1,
+      "瘟疫": 1
+    },
+    "parseRejects": 0,
+    "fuzzRejects": 144,
+    "waste": 0.063,
+    "apSpent": 607,
+    "apCap": 648,
+    "meaningful": 712,
+    "meaningfulPerTurn": 19.78,
+    "staleTurns": 19,
+    "longestStale": 5,
+    "violations": [],
+    "violationCount": 0,
+    "msTotal": 21.8,
+    "msMax": 3.33,
+    "msAvg": 0.61,
+    "endCities": {
+      "wei": 3,
+      "shu": 4,
+      "wu": 1
+    },
+    "endTroops": {
+      "wei": 669,
+      "shu": 1392,
+      "wu": 254
+    },
+    "endGrain": {
+      "wei": 1919,
+      "shu": 6249,
+      "wu": 3901
+    }
+  },
+  {
+    "id": "sim6-c",
+    "label": "加速丙",
+    "turns": 36,
+    "unified": false,
+    "winner": null,
+    "status": "running",
+    "closeReason": null,
+    "deaths": [],
+    "orders": {
+      "recruit": 71,
+      "farm": 168,
+      "develop": 108,
+      "war:march": 34,
+      "search": 46,
+      "raise_dike": 36,
+      "store_grain": 46,
+      "mend_road": 19,
+      "hold_line": 44,
+      "dip:alliance": 36,
+      "raise_clinic": 6,
+      "relieve": 9,
+      "war:leave": 9,
+      "transport": 6,
+      "war:refuse": 8,
+      "war:confirm": 10,
+      "war:hold": 83,
+      "watch_sky": 22,
+      "dig_canal": 7,
+      "drill_prowess": 6,
+      "drill_command": 8
+    },
+    "reliefUses": {
+      "raise_dike": 36,
+      "store_grain": 46,
+      "mend_road": 19,
+      "raise_clinic": 6,
+      "relieve": 9,
+      "watch_sky": 22,
+      "dig_canal": 7
+    },
+    "reliefSaved": {
+      "dike": 0,
+      "granary": 0,
+      "clinic": 0
+    },
+    "disasterGrain": 0,
+    "disasterTroops": 0,
+    "weather": {
+      "晴": 19,
+      "雨": 9,
+      "雪": 6,
+      "旱": 1,
+      "雾": 1
+    },
+    "disasters": {},
+    "parseRejects": 0,
+    "fuzzRejects": 144,
+    "waste": 0.071,
+    "apSpent": 602,
+    "apCap": 648,
+    "meaningful": 700,
+    "meaningfulPerTurn": 19.44,
+    "staleTurns": 21,
+    "longestStale": 7,
+    "violations": [],
+    "violationCount": 0,
+    "msTotal": 19,
+    "msMax": 1.29,
+    "msAvg": 0.53,
+    "endCities": {
+      "wei": 3,
+      "shu": 4,
+      "wu": 1
+    },
+    "endTroops": {
+      "wei": 767,
+      "shu": 1643,
+      "wu": 268
+    },
+    "endGrain": {
+      "wei": 2735,
+      "shu": 7050,
+      "wu": 4189
+    }
+  },
+  {
+    "id": "sim6-d",
+    "label": "加速丁",
+    "turns": 36,
+    "unified": false,
+    "winner": null,
+    "status": "running",
+    "closeReason": null,
+    "deaths": [],
+    "orders": {
+      "recruit": 71,
+      "farm": 166,
+      "develop": 108,
+      "war:march": 33,
+      "search": 43,
+      "raise_dike": 39,
+      "dig_canal": 19,
+      "store_grain": 44,
+      "hold_line": 40,
+      "dip:alliance": 36,
+      "drill_prowess": 4,
+      "war:refuse": 7,
+      "relieve": 9,
+      "drill_command": 10,
+      "war:leave": 7,
+      "watch_sky": 26,
+      "raise_clinic": 8,
+      "war:hold": 83,
+      "mend_road": 18,
+      "war:confirm": 14,
+      "transport": 4
+    },
+    "reliefUses": {
+      "raise_dike": 39,
+      "dig_canal": 19,
+      "store_grain": 44,
+      "relieve": 9,
+      "watch_sky": 26,
+      "raise_clinic": 8,
+      "mend_road": 18
+    },
+    "reliefSaved": {
+      "dike": 0,
+      "granary": 0,
+      "clinic": 0
+    },
+    "disasterGrain": 0,
+    "disasterTroops": 0,
+    "weather": {
+      "雨": 7,
+      "旱": 3,
+      "雾": 5,
+      "晴": 17,
+      "雪": 4
+    },
+    "disasters": {},
+    "parseRejects": 0,
+    "fuzzRejects": 144,
+    "waste": 0.06,
+    "apSpent": 609,
+    "apCap": 648,
+    "meaningful": 708,
+    "meaningfulPerTurn": 19.67,
+    "staleTurns": 21,
+    "longestStale": 7,
+    "violations": [],
+    "violationCount": 0,
+    "msTotal": 19.8,
+    "msMax": 1.17,
+    "msAvg": 0.55,
+    "endCities": {
+      "wei": 3,
+      "shu": 4,
+      "wu": 1
+    },
+    "endTroops": {
+      "wei": 753,
+      "shu": 1649,
+      "wu": 274
+    },
+    "endGrain": {
+      "wei": 2765,
+      "shu": 6725,
+      "wu": 4139
+    }
+  },
+  {
+    "id": "sim6-e",
+    "label": "加速戊",
+    "turns": 36,
+    "unified": false,
+    "winner": null,
+    "status": "running",
+    "closeReason": null,
+    "deaths": [],
+    "orders": {
+      "recruit": 72,
+      "farm": 168,
+      "develop": 108,
+      "war:march": 31,
+      "search": 45,
+      "raise_dike": 35,
+      "store_grain": 41,
+      "mend_road": 15,
+      "hold_line": 40,
+      "dip:alliance": 36,
+      "raise_clinic": 8,
+      "war:hold": 86,
+      "watch_sky": 30,
+      "war:leave": 13,
+      "transport": 5,
+      "relieve": 9,
+      "war:confirm": 5,
+      "dig_canal": 21,
+      "drill_prowess": 7,
+      "war:refuse": 9,
+      "drill_command": 6
+    },
+    "reliefUses": {
+      "raise_dike": 35,
+      "store_grain": 41,
+      "mend_road": 15,
+      "raise_clinic": 8,
+      "watch_sky": 30,
+      "relieve": 9,
+      "dig_canal": 21
+    },
+    "reliefSaved": {
+      "dike": 180,
+      "granary": 134,
+      "clinic": 0
+    },
+    "disasterGrain": 785,
+    "disasterTroops": 0,
+    "weather": {
+      "雨": 6,
+      "晴": 14,
+      "雾": 8,
+      "旱": 4,
+      "雪": 4
+    },
+    "disasters": {
+      "涝": 1
+    },
+    "parseRejects": 0,
+    "fuzzRejects": 144,
+    "waste": 0.059,
+    "apSpent": 610,
+    "apCap": 648,
+    "meaningful": 710,
+    "meaningfulPerTurn": 19.72,
+    "staleTurns": 20,
+    "longestStale": 6,
+    "violations": [],
+    "violationCount": 0,
+    "msTotal": 21,
+    "msMax": 1.25,
+    "msAvg": 0.58,
+    "endCities": {
+      "wei": 4,
+      "shu": 3,
+      "wu": 1
+    },
+    "endTroops": {
+      "wei": 961,
+      "shu": 1519,
+      "wu": 274
+    },
+    "endGrain": {
+      "wei": 3371,
+      "shu": 6063,
+      "wu": 3883
+    }
+  }
+]
