@@ -432,8 +432,10 @@ export interface Order {
     condition?: "cede_city" | "military_aid" | "truce_3";
   };
   war?: {
-    type: "march" | "hold" | "confirm" | "delegate" | "leave" | "refuse" | "duel";
+    type: "march" | "hold" | "confirm" | "delegate" | "leave" | "refuse" | "duel" | "move";
     targetCityId?: string;
+    /** 下单时本人所在的城。移驻结算时必须仍在这里，不能由客户端改写。 */
+    fromCityId?: string;
     commanderRoleId?: string;
     portion?: "half" | "most";
     personal?: boolean;

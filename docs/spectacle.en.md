@@ -2,7 +2,7 @@
 
 [中文](spectacle.md) · [日本語](spectacle.ja.md) · [한국어](spectacle.ko.md)
 
-The everyday picture stays 16-bit pixels. Three short pieces may appear only after the turn has already resolved. They do not change grain, troops, or the result. This repository does not run a public match.
+Everyday actions are short hand-drawn shots. There is no 16-bit ceiling, and they are not video. Three short pieces may appear only after the turn has already resolved. They do not change grain, troops, or the result. None of the three has a finished film: the manifest URLs are empty, and the game does not read the concept clip. This repository does not run a public match.
 
 ## The three
 

@@ -12,20 +12,24 @@ import { GearPanel } from "@/components/game/gear-panel";
 import { MemorialHall } from "@/components/game/memorial-hall";
 import { Storyboard } from "@/components/game/spectacle";
 import { Cutscene } from "@/components/game/stage";
-import { TILE, blitCity, blitPass, blitTile, blitWash, cityRank, drawWeather } from "@/components/game/tiles";
+import { TILE, blitCity, blitWash, cityRank, drawWeather, paintTerrain } from "@/components/game/tiles";
 import type { SkyReport } from "@/engine/climate";
 
 const CITIES = [
-  { id: "xuchang", links: ["luoyang", "chengdu"], isCapital: false, x: 24, y: 48 },
-  { id: "luoyang", links: ["xuchang", "jianye", "chengdu"], isCapital: true, x: 50, y: 38 },
-  { id: "chengdu", links: ["luoyang", "xuchang"], isCapital: false, x: 42, y: 78 },
-  { id: "jianye", links: ["luoyang"], isCapital: false, x: 78, y: 46 },
+  { id: "changan", links: ["luoyang"], isCapital: false, x: 24, y: 40 },
+  { id: "luoyang", links: ["changan", "xuchang", "xiangyang"], isCapital: true, x: 46, y: 42 },
+  { id: "xuchang", links: ["luoyang", "xiangyang", "xiapi"], isCapital: false, x: 62, y: 52 },
+  { id: "xiangyang", links: ["luoyang", "xuchang"], isCapital: false, x: 46, y: 64 },
+  { id: "xiapi", links: ["xuchang", "jianye"], isCapital: false, x: 76, y: 38 },
+  { id: "jianye", links: ["xiapi"], isCapital: false, x: 82, y: 70 },
 ];
 
 const MARKS = [
-  { id: "xuchang", controllerId: "wei", troops: 1500, capital: false },
+  { id: "changan", controllerId: null, troops: 850, capital: false },
   { id: "luoyang", controllerId: null, troops: 1000, capital: true },
-  { id: "chengdu", controllerId: "shu", troops: 1400, capital: false },
+  { id: "xuchang", controllerId: "wei", troops: 1500, capital: false },
+  { id: "xiangyang", controllerId: null, troops: 850, capital: false },
+  { id: "xiapi", controllerId: null, troops: 850, capital: false },
   { id: "jianye", controllerId: "wu", troops: 1500, capital: false },
 ];
 
@@ -78,29 +82,23 @@ function SampleMap({ sky: report, march = false }: { sky: SkyReport; march?: boo
       const skyCtx = overlay.getContext("2d");
       if (ctx && skyCtx) {
         ctx.imageSmoothingEnabled = false;
-        atlas.cells.forEach((row, y) => {
-          row.forEach((kind, x) => {
-            const ground = kind === "C" || kind === "K" ? "g" : kind;
-            blitTile(ctx, ground, x * TILE, y * TILE, frame, report);
-            if ((kind === "R" || kind === "B") && [atlas.cells[y - 1]?.[x], atlas.cells[y + 1]?.[x], atlas.cells[y]?.[x - 1], atlas.cells[y]?.[x + 1]].includes("M")) {
-              blitPass(ctx, x * TILE, y * TILE);
-            }
-          });
+        const spots = MARKS.flatMap((mark) => {
+          const at = atlas.pos.get(mark.id);
+          return at ? [at] : [];
         });
+        paintTerrain(ctx, atlas.cells, frame, report, spots);
         for (const mark of MARKS) {
           const at = atlas.pos.get(mark.id);
           if (!at || !mark.controllerId) continue;
-          for (let dy = -2; dy <= 2; dy += 1) {
-            for (let dx = -2; dx <= 2; dx += 1) {
-              const kind = atlas.cells[at.y + dy]?.[at.x + dx];
-              if (kind === "g" || kind === "g2") blitWash(ctx, (at.x + dx) * TILE, (at.y + dy) * TILE, dye(mark.controllerId));
-            }
+          for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+            const kind = atlas.cells[at.y + dy]?.[at.x + dx];
+            if (kind === "g" || kind === "g2" || kind === "F" || kind === "R") blitWash(ctx, (at.x + dx) * TILE, (at.y + dy) * TILE, dye(mark.controllerId));
           }
         }
         for (const mark of MARKS) {
           const at = atlas.pos.get(mark.id);
           if (!at) continue;
-          blitCity(ctx, at.x * TILE, at.y * TILE, cityRank(mark.troops, mark.capital));
+          blitCity(ctx, at.x * TILE, at.y * TILE, cityRank(mark.troops, mark.capital), dye(mark.controllerId));
         }
         if (march) {
           const path = roadBetween(atlas, "xuchang", "luoyang");
@@ -115,11 +113,14 @@ function SampleMap({ sky: report, march = false }: { sky: SkyReport; march?: boo
     loop();
     return () => window.clearTimeout(raf);
   }, [report, march]);
+  const cols = buildAtlas(CITIES).cols;
   return (
     <figure className="pixel-map">
-      <canvas ref={ref} />
-      <canvas ref={skyRef} className="sky-layer" />
-      <figcaption className="map-sky">{skyLine(report, locale)}</figcaption>
+      <div className="pixel-stage" style={{ ["--cols" as string]: cols }}>
+        <canvas ref={ref} />
+        <canvas ref={skyRef} className="sky-layer" />
+        <figcaption className="map-sky">{skyLine(report, locale)}</figcaption>
+      </div>
     </figure>
   );
 }

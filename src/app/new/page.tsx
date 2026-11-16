@@ -17,7 +17,7 @@ export default function NewWorldPage() {
   useEffect(() => {
     if (!named) setName(t("new.defaultName"));
   }, [named, t]);
-  const [profile, setProfile] = useState("tabletop_demo");
+  const [profile, setProfile] = useState("river_board");
   const [kind, setKind] = useState<"sandbox" | "experiment">("sandbox");
   const [ack, setAck] = useState(false);
   const [error, setError] = useState<string | null>(null);

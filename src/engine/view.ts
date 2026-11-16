@@ -103,6 +103,7 @@ export interface PublicWorld {
   amendments: WorldState["amendments"];
   door: DoorReport;
   seatedCount: number;
+  lockedCount: number;
   sky: SkyReport;
   skyNext: SkyReport;
   bonds: { a: string; b: string; sinceTurn: number }[];
@@ -241,6 +242,7 @@ export function toPublic(state: WorldState, viewerRoleId: string | null, chronic
     bonds: state.bonds ?? [],
     bounty: state.bounty?.season === sky.season ? state.bounty : plannedBounty(state),
     seatedCount: state.roles.filter((r) => r.alive && r.seated).length,
+    lockedCount: state.roles.filter((r) => r.alive && r.seated && state.lockedOrders[r.id]).length,
     memorial: state.status === "memorial" || state.status === "settled" ? memorialFacts(state) : null,
     you: you
       ? {

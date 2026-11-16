@@ -83,23 +83,32 @@ export function ready() {
 async function boot() {
   await ensureSchema();
   const db = database();
-  const existing = await db.sql.get<{ id: string }>("SELECT id FROM worlds WHERE id = ?", ["demo"]);
+  await seedPinned(db, "demo", "第一号实验局", "tabletop_demo", true);
+  await seedPinned(db, "land", "山河试玩", "river_board", false);
+}
+
+async function seedPinned(
+  db: Awaited<ReturnType<typeof database>>,
+  id: string,
+  name: string,
+  profile: string,
+  withReferee: boolean,
+) {
+  const existing = await db.sql.get<{ id: string }>("SELECT id FROM worlds WHERE id = ?", [id]);
   if (existing) return;
   const built = buildWorld({
-    id: "demo",
-    name: "第一号实验局",
-    profile: "tabletop_demo",
+    id,
+    name,
+    profile,
     kind: "experiment",
     now: new Date().toISOString(),
   });
   if (!built.ok) throw new Error(built.errors.join("；"));
   await insertWorld(db.sql, built.state, null, 1, null);
+  if (!withReferee) return;
   const referee = process.env.TIANXIA_REFEREE_TOKEN;
   if (referee) {
-    await db.sql.run("INSERT INTO referees (world_id, token_hash) VALUES (?, ?)", [
-      "demo",
-      hashToken(referee),
-    ]);
+    await db.sql.run("INSERT INTO referees (world_id, token_hash) VALUES (?, ?)", [id, hashToken(referee)]);
   }
 }
 
@@ -204,7 +213,7 @@ export async function catchUp(id: string) {
 }
 
 export async function viewWorld(id: string, actorHash: string): Promise<PublicWorld> {
-  if (!/^(demo|w_[a-f0-9]{16})$/.test(id)) throw new GameError("没有这一局", 404);
+  if (!/^(demo|land|w_[a-f0-9]{16})$/.test(id)) throw new GameError("没有这一局", 404);
   await catchUp(id);
   const loaded = await database().tx(async (q) => load(q, id));
   if (!loaded) throw new GameError("没有这一局", 404);

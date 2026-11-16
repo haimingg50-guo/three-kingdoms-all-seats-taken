@@ -383,10 +383,14 @@ export function parseOrder(
     if (!src.war || typeof src.war !== "object") return { ok: false, error: "军令格式不对" };
     const w = src.war as Record<string, unknown>;
     const type = w.type;
-    if (type !== "march" && type !== "hold" && type !== "confirm" && type !== "delegate" && type !== "leave" && type !== "refuse" && type !== "duel") {
+    if (type !== "march" && type !== "hold" && type !== "confirm" && type !== "delegate" && type !== "leave" && type !== "refuse" && type !== "duel" && type !== "move") {
       return { ok: false, error: "没有这种军令" };
     }
     if (type === "march" && role.office !== "lord") return { ok: false, error: "出征由君主下令" };
+    if (type === "move" && role.office !== "lord" && role.office !== "general" && role.office !== "advisor") {
+      return { ok: false, error: "移驻由在职人物为自己下令" };
+    }
+    if (type === "move" && !role.seated) return { ok: false, error: "空席不能移驻" };
     if (type === "duel" && role.office !== "lord" && role.office !== "general" && role.office !== "advisor") {
       return { ok: false, error: "单挑由在职人物提出" };
     }
@@ -408,6 +412,19 @@ export function parseOrder(
       }
       if (!origin.links.includes(war.targetCityId)) return { ok: false, error: "只能进攻相连的城" };
       if (war.targetCityId === origin.id) return { ok: false, error: "不能向自己的城出征" };
+    }
+    if (type === "move") {
+      if (!war.targetCityId) return { ok: false, error: "移驻要指明相邻的友方城" };
+      const origin = role.cityId ? state.cities.find((c) => c.id === role.cityId) : undefined;
+      const dest = state.cities.find((c) => c.id === war.targetCityId);
+      if (!origin || origin.controllerId !== role.factionId) {
+        return { ok: false, error: "移驻必须从自己势力控制的城出发" };
+      }
+      if (!dest || !origin.links.includes(dest.id)) return { ok: false, error: "只能沿相邻道路移驻，不能穿越" };
+      if (dest.controllerId !== role.factionId) return { ok: false, error: "目标城不是友方，不能移驻" };
+      if (dest.id === origin.id) return { ok: false, error: "已经在这座城里" };
+      war.fromCityId = origin.id;
+      war.targetCityId = dest.id;
     }
     order.war = war;
   }

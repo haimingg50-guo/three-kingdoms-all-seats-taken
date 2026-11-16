@@ -1791,6 +1791,60 @@ function resolveWar(state: WorldState, orders: Record<string, Order>, scratch: S
   }
 }
 
+/**
+ * 移驻在内政、外交、天灾、流民、出征和城破遣散之后。
+ * 人只走一格，兵留在原城。出发城或目标城若已不是本人当前势力，或人已不在下单时的城里，这一步失败，不穿越。
+ */
+function resolveMoves(state: WorldState, orders: Record<string, Order>) {
+  const movers = state.roles
+    .filter((role) => orders[role.id]?.war?.type === "move")
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const role of movers) {
+    const war = orders[role.id]?.war;
+    const fromId = war?.fromCityId;
+    const toId = war?.targetCityId;
+    if (!role.alive) {
+      push(state, { turn: state.turn, phase: "war", kind: "reject", key: "war.move.dead", params: { actor: role.id } });
+      continue;
+    }
+    if (role.captiveOf) {
+      push(state, { turn: state.turn, phase: "war", kind: "reject", key: "war.move.captive", params: { actor: role.id, city: role.cityId ?? "" } });
+      continue;
+    }
+    if (!fromId || role.cityId !== fromId) {
+      push(state, { turn: state.turn, phase: "war", kind: "reject", key: "war.move.displaced", params: { actor: role.id, origin: fromId ?? "", city: role.cityId ?? "" } });
+      continue;
+    }
+    const origin = cityById(state, fromId);
+    const dest = cityById(state, toId);
+    if (!origin || !dest || !origin.links.includes(dest.id)) {
+      push(state, { turn: state.turn, phase: "war", kind: "reject", key: "war.move.road", params: { actor: role.id, origin: fromId, city: toId ?? "" } });
+      continue;
+    }
+    if (origin.controllerId !== role.factionId) {
+      push(state, { turn: state.turn, phase: "war", kind: "reject", key: "war.move.origin", params: { actor: role.id, origin: origin.id } });
+      continue;
+    }
+    if (dest.controllerId !== role.factionId) {
+      push(state, { turn: state.turn, phase: "war", kind: "reject", key: "war.move.enemy", params: { actor: role.id, origin: origin.id, city: dest.id } });
+      continue;
+    }
+    const left = origin.troops;
+    const arrived = dest.troops;
+    role.cityId = dest.id;
+    origin.troops = left;
+    dest.troops = arrived;
+    push(state, {
+      turn: state.turn,
+      phase: "war",
+      kind: "move",
+      key: "war.move",
+      params: { actor: role.id, origin: origin.id, city: dest.id, troops: left },
+      roleId: role.id,
+    });
+  }
+}
+
 function defender(state: WorldState, city: City, scratch: Scratch): {
   role: Role | null;
   command: number;
@@ -2133,6 +2187,7 @@ export function resolveTurn(input: WorldState, nowIso: string): WorldState {
   applyDisaster(state, sky, scratch);
   applyRefugees(state);
   resolveWar(state, orders, scratch, sky);
+  resolveMoves(state, orders);
   ageWorks(state);
   claimBounty(state);
   expireContracts(state, scratch);

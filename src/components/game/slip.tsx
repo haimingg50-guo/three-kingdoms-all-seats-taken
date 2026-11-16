@@ -1,18 +1,87 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AMENDABLE } from "@/engine/config";
 import { CHARGES } from "@/engine/order";
 import type { DomesticKind, Order, VoteChoice } from "@/engine/types";
 import type { PublicRole, PublicWorld } from "@/engine/view";
 import { GearPanel } from "@/components/game/gear-panel";
+import { GuideBar, useGuide } from "@/components/game/guide";
 import { blip } from "@/components/game/sfx";
+import { readMotion } from "@/components/game/motion";
+import {
+  draftHasStarter,
+  draftStorageKey,
+  guideFocus,
+  nextGuide,
+  orderLines,
+  primaryFor,
+  readStoredDraft,
+  seatMeta,
+  starterKinds,
+  turnPhase,
+} from "@/components/game/play";
 import { Portrait } from "@/components/game/portraits";
 import { Button } from "@/components/ui/button";
-import { explain, skyHint, useI18n } from "@/i18n/provider";
+import { explain, useI18n } from "@/i18n/provider";
 import { CHARGES as CHARGE_NAMES } from "@/i18n/glossary";
 import { GEAR } from "@/i18n/glossary";
-import { cityName, factionName, officeDisplay, personName, skyLine } from "@/i18n/render";
+import { cityName, factionName, officeDisplay, personName } from "@/i18n/render";
+
+function friendlyCities(world: PublicWorld, me: PublicRole) {
+  const here = world.cities.find((city) => city.id === me.cityId);
+  return (here?.links ?? [])
+    .map((id) => world.cities.find((city) => city.id === id))
+    .filter((city): city is PublicWorld["cities"][number] => Boolean(city && city.controllerId && city.controllerId === me.factionId));
+}
+
+function MoveOrder({
+  world,
+  me,
+  draft,
+  locked,
+  onChange,
+}: {
+  world: PublicWorld;
+  me: PublicRole;
+  draft: Order;
+  locked: boolean;
+  onChange: (war: Order["war"]) => void;
+}) {
+  const { t, locale } = useI18n();
+  const here = world.cities.find((city) => city.id === me.cityId);
+  const friends = friendlyCities(world, me);
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">{here ? t("slip.here", { city: cityName(here.id, locale, here.name) }) : t("map.noGarrison")}</p>
+      <Button
+        type="button"
+        size="sm"
+        variant={draft.war?.type === "move" ? "default" : "outline"}
+        disabled={locked || friends.length === 0}
+        onClick={() => onChange({ type: "move", targetCityId: friends[0]?.id })}
+      >
+        {t("slip.move")}
+      </Button>
+      {friends.length === 0 ? <p className="text-sm text-muted-foreground">{t("slip.noFriend")}</p> : null}
+      {draft.war?.type === "move" ? (
+        <label className="block text-sm">
+          {t("slip.moveTo")}
+          <select
+            className="mt-1 h-9 w-full border border-border bg-card px-2"
+            disabled={locked}
+            value={draft.war.targetCityId ?? ""}
+            onChange={(event) => onChange({ type: "move", targetCityId: event.target.value })}
+          >
+            {friends.map((city) => (
+              <option key={city.id} value={city.id}>{cityName(city.id, locale, city.name)}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </div>
+  );
+}
 
 function clothOf(id: string | null) {
   if (id === "wei") return "#5088d8";
@@ -20,19 +89,6 @@ function clothOf(id: string | null) {
   if (id === "wu") return "#d85848";
   return "#c4a060";
 }
-
-const DOMESTIC: { kind: DomesticKind; label: string; who: "officer" | "citizen" | "any" }[] = [
-  { kind: "develop", label: "开发", who: "officer" },
-  { kind: "farm", label: "屯田", who: "any" },
-  { kind: "recruit", label: "征兵", who: "officer" },
-  { kind: "drill_prowess", label: "练武", who: "any" },
-  { kind: "drill_command", label: "练统", who: "any" },
-  { kind: "search", label: "搜索", who: "any" },
-  { kind: "transport", label: "运粮", who: "any" },
-  { kind: "hold_line", label: "守城", who: "any" },
-  { kind: "enlist", label: "从军", who: "citizen" },
-  { kind: "open_gates", label: "开门", who: "citizen" },
-];
 
 const RELIEF: { kind: DomesticKind; label: string }[] = [
   { kind: "raise_dike", label: "修堤" },
@@ -62,11 +118,21 @@ async function send(url: string, method: string, body?: unknown) {
   return data;
 }
 
-export function Slip({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
+export function Slip({
+  world,
+  onDone,
+  reviewing = false,
+  onFocusMine,
+}: {
+  world: PublicWorld;
+  onDone: () => void;
+  reviewing?: boolean;
+  onFocusMine?: () => void;
+}) {
   const closed = world.status === "memorial" || world.status === "settled";
   if (closed) return <Closed world={world} />;
   if (!world.you) return <Claim world={world} onDone={onDone} />;
-  return <Orders world={world} onDone={onDone} />;
+  return <Orders world={world} onDone={onDone} reviewing={reviewing} onFocusMine={onFocusMine} />;
 }
 
 function Closed({ world }: { world: PublicWorld }) {
@@ -86,33 +152,39 @@ function Closed({ world }: { world: PublicWorld }) {
   );
 }
 
-function SeatButton({
+function SeatCard({
   role,
-  pending,
-  emphasized,
-  onTake,
+  world,
+  picked,
+  onPick,
 }: {
   role: PublicRole;
-  pending: boolean;
-  emphasized?: boolean;
-  onTake: () => void;
+  world: PublicWorld;
+  picked: boolean;
+  onPick: () => void;
 }) {
   const { t, locale } = useI18n();
+  const faction = world.factions.find((item) => item.id === role.factionId);
+  const city = world.cities.find((item) => item.id === role.cityId);
+  const where = city ? t("play.where", { city: cityName(city.id, locale, city.name) }) : t("play.whereNone");
+  const meta = seatMeta({
+    faction: faction ? factionName(faction.id, locale, faction.name) : null,
+    office: officeDisplay(role, locale),
+    where,
+  });
   return (
     <button
       type="button"
-      disabled={pending || role.seated}
-      onClick={onTake}
-      className={emphasized ? "nes-choice is-on w-full" : "nes-choice w-full"}
+      data-seat={role.id}
+      aria-pressed={picked}
+      disabled={role.seated}
+      onClick={onPick}
+      className={picked ? "seat-card is-on" : "seat-card"}
     >
-      <i className={emphasized ? "nes-blink" : ""}>{emphasized ? "▶" : "·"}</i>
-      <Portrait id={role.id} cloth={clothOf(role.factionId)} scale={2} />
-      <span>
-        <span className="block">{personName(role.id, locale, role.name)}</span>
-        <span className="block text-muted-foreground">
-          {officeDisplay(role, locale)} · {t("stat.prowess", { n: role.prowess })} {t("stat.intellect", { n: role.intellect })} {t("stat.command", { n: role.command })}
-          {role.seated ? ` · ${t("slip.taken")}` : ""}
-        </span>
+      <Portrait id={role.id} cloth={clothOf(role.factionId)} scale={3} />
+      <span className="seat-copy">
+        <strong>{personName(role.id, locale, role.name)}</strong>
+        <span>{meta}{role.seated ? ` · ${t("slip.taken")}` : ""}</span>
       </span>
     </button>
   );
@@ -120,6 +192,7 @@ function SeatButton({
 
 function Claim({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
   const { t, locale } = useI18n();
+  const guide = useGuide();
   const [cityId, setCityId] = useState(world.cities[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -163,9 +236,21 @@ function Claim({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
     blip("move");
   }
 
+  const pickedRole = order.find((role) => role.id === picked);
+  const focus = guideFocus({
+    skipped: guide.saved.skipped,
+    closed: false,
+    seated: false,
+    canStart: false,
+    started: false,
+    locked: false,
+    cursor: guide.saved.cursor,
+  });
+
   return (
     <div
-      className="p-4"
+      className="play-claim"
+      data-phase="watch"
       tabIndex={0}
       onKeyDown={(event) => {
         if (event.key === "ArrowDown" || event.key === "ArrowRight") {
@@ -176,94 +261,115 @@ function Claim({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
           event.preventDefault();
           move(-1);
         }
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && pickedRole && !pickedRole.seated) {
           event.preventDefault();
           void take({ roleId: picked });
         }
       }}
     >
-      <h2 className="text-2xl">{t("slip.claimTitle")}</h2>
-      <p className="mt-1 text-sm text-primary">{skyLine(world.sky, locale)}。{skyHint(world.sky, t, locale)}</p>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-        {t("slip.claimBody")}
-        {world.kind === "sandbox" ? t("slip.sandboxSwap") : t("slip.experimentLock")}
-        {world.hiddenReserves > 0 ? ` ${t("slip.hidden", { n: world.hiddenReserves })}` : ""}
+      <p className="play-phase is-watch" role="status">
+        <strong>{t("play.phase.watch")}</strong>
+        <span>{t("play.note.watch")}</span>
       </p>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+      <h2 className="font-display text-3xl">{t("slip.claimTitle")}</h2>
+      <GuideBar
+        id={focus}
+        text={t("guide.seat")}
+        canNext={false}
+        onNext={() => undefined}
+        onSkip={() => guide.write({ cursor: "done", skipped: true })}
+      />
+      <ul className="seat-grid">
         {lords.map((role) => (
           <li key={role.id}>
-            <SeatButton
-              role={role}
-              pending={pending}
-              emphasized={picked === role.id}
-              onTake={() => {
-                if (picked === role.id) void take({ roleId: role.id });
-                else {
-                  setCursor(role.id);
-                  blip("move");
-                }
-              }}
-            />
+            <SeatCard role={role} world={world} picked={picked === role.id} onPick={() => { setCursor(role.id); blip("move"); }} />
           </li>
         ))}
       </ul>
-      <button type="button" className="nes-choice is-on mt-3 w-full" disabled={pending || !picked} onClick={() => void take({ roleId: picked })}>
-        {t("slip.confirmSeat")}
+      <button type="button" className="nes-choice is-on play-submit" disabled={pending || !pickedRole || pickedRole.seated} onClick={() => void take({ roleId: picked })}>
+        {pickedRole ? t("play.sitAs", { name: personName(pickedRole.id, locale, pickedRole.name) }) : t("slip.confirmSeat")}
       </button>
-      {groups.map((group) => (
-        <div key={group.title} className="mt-4">
-          <h3 className="text-xs tracking-[0.16em] text-muted-foreground">{group.title}</h3>
-          <ul className="mt-2 grid grid-cols-2 gap-2">
-            {group.roles.map((role) => (
-              <li key={role.id}>
-                <SeatButton
-                  role={role}
-                  pending={pending}
-                  emphasized={picked === role.id}
-                  onTake={() => {
-                    if (picked === role.id) void take({ roleId: role.id });
-                    else {
-                      setCursor(role.id);
-                      blip("move");
-                    }
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
+      <details className="play-more">
+        <summary>{t("play.otherSeats")}</summary>
+        <div>
+          {groups.map((group) => (
+            <div key={group.title} className="mt-3">
+              <h3>{group.title}</h3>
+              <ul className="seat-grid">
+                {group.roles.map((role) => (
+                  <li key={role.id}>
+                    <SeatCard role={role} world={world} picked={picked === role.id} onPick={() => { setCursor(role.id); blip("move"); }} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <div className="mt-4 flex flex-wrap items-end gap-2">
+            <label className="text-sm">
+              {t("slip.citizen")}
+              <select className="mt-1 block h-10 border border-border bg-card px-2" value={cityId} onChange={(event) => setCityId(event.target.value)}>
+                {world.cities.map((city) => (
+                  <option key={city.id} value={city.id}>{cityName(city.id, locale, city.name)}</option>
+                ))}
+              </select>
+            </label>
+            <Button type="button" size="lg" disabled={pending} onClick={() => void take({ citizen: true, cityId })}>
+              {t("slip.naming")}
+            </Button>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">{t("slip.citizenNote")}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {world.kind === "sandbox" ? t("slip.sandboxSwap") : t("slip.experimentLock")}
+            {world.hiddenReserves > 0 ? ` ${t("slip.hidden", { n: world.hiddenReserves })}` : ""}
+          </p>
         </div>
-      ))}
-      <div className="mt-4 flex flex-wrap items-end gap-2">
-        <label className="text-sm">
-          {t("slip.citizen")}
-          <select className="mt-1 block h-10 border border-border bg-card px-2" value={cityId} onChange={(event) => setCityId(event.target.value)}>
-            {world.cities.map((city) => (
-              <option key={city.id} value={city.id}>{cityName(city.id, locale, city.name)}</option>
-            ))}
-          </select>
-        </label>
-        <Button type="button" size="lg" disabled={pending} onClick={() => void take({ citizen: true, cityId })}>
-          {t("slip.naming")}
-        </Button>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">{t("slip.citizenNote")}</p>
+      </details>
       {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }
 
-function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
+function Orders({
+  world,
+  onDone,
+  reviewing = false,
+  onFocusMine,
+}: {
+  world: PublicWorld;
+  onDone: () => void;
+  reviewing?: boolean;
+  onFocusMine?: () => void;
+}) {
   const { t, locale } = useI18n();
+  const guide = useGuide();
   const me = world.roles.find((role) => role.id === world.you?.roleId);
   const [draft, setDraft] = useState<Order>(world.you?.order ?? blank());
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [sealed, setSealed] = useState(false);
   const locked = Boolean(world.you?.locked);
-  const sync = `${world.turn}:${world.you?.roleId}:${locked}`;
+  const storageKey = world.you ? draftStorageKey(world.id, world.turn, world.you.roleId) : "";
 
   useEffect(() => {
-    setDraft(world.you?.order ?? blank());
-  }, [sync, world.you?.order]);
+    if (!storageKey) return;
+    if (locked) {
+      const next = world.you?.order ?? blank();
+      draftRef.current = next;
+      setDraft(next);
+      return;
+    }
+    const next = readStoredDraft(window.sessionStorage.getItem(storageKey)) ?? blank();
+    draftRef.current = next;
+    setDraft(next);
+    setSealed(false);
+  }, [storageKey, locked, world.you?.order]);
+
+  useEffect(() => {
+    if (!storageKey || locked) return;
+    window.sessionStorage.setItem(storageKey, JSON.stringify(draftRef.current));
+  }, [draft, storageKey, locked]);
 
   if (!me || !world.you) return null;
   const officer = me.office === "lord" || me.office === "general" || me.office === "advisor";
@@ -291,6 +397,7 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
         ...(draft.letter ? { letter: draft.letter } : {}),
       });
       blip("ok");
+      setSealed(true);
       onDone();
     } catch (caught) {
       blip("no");
@@ -318,24 +425,85 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
     setDraft({ ...draft, domestic: [...draft.domestic, { kind }] });
   }
 
+  const phase = turnPhase({ seated: true, locked, sealOpen: sealed, reviewing, closed: false });
+  const starters = starterKinds(me);
+  const focus = guideFocus({
+    skipped: guide.saved.skipped,
+    closed: false,
+    seated: true,
+    canStart: starters.length > 0,
+    started: draftHasStarter(draft),
+    locked,
+    cursor: guide.saved.cursor,
+  });
+  const faction = world.factions.find((item) => item.id === me.factionId);
+  const home = world.cities.find((city) => city.id === me.cityId);
+  const where = home ? t("play.where", { city: cityName(home.id, locale, home.name) }) : t("play.whereNone");
+  const meta = seatMeta({
+    faction: faction ? factionName(faction.id, locale, faction.name) : null,
+    office: officeDisplay(me, locale),
+    where,
+  });
+  const guideText = focus === "who"
+    ? t("guide.who", { name: personName(me.id, locale, me.name), meta, points })
+    : focus === "act"
+      ? (starters.length > 0 ? t("guide.act") : t("guide.actGone"))
+      : focus === "draft"
+        ? t("guide.draft")
+        : focus === "wait"
+          ? t("guide.wait")
+          : "";
+  const lines = orderLines(draft);
+
   return (
     <form
-      className="space-y-4 p-4"
+      className="play-order"
+      data-phase={phase}
       onSubmit={(event) => {
         event.preventDefault();
         void lock();
       }}
     >
-      <div>
-        <h2 className="font-display text-3xl">{personName(me.id, locale, me.name)}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t("slip.stats", { office: officeDisplay(me, locale), rep: me.reputation, merit: me.merit, used: draft.domestic.length, points })}
-        </p>
-        <p className="mt-2 text-sm text-primary">{t("slip.skyWatch", { sky: skyLine(world.sky, locale), hint: skyHint(world.sky, t, locale), next: skyLine(world.skyNext, locale) })}</p>
-        {world.turn > 1 && !locked ? (
-          <p className="mt-2 text-sm">{t("board.wrote", { turn: world.turn - 1, now: world.turn })}</p>
-        ) : null}
-      </div>
+      <p className={`play-phase is-${phase}`} data-phase={phase} role="status">
+        <strong>{t(`play.phase.${phase}`)}</strong>
+        <span>
+          {phase === "waiting"
+            ? t("play.note.waiting", { seated: world.seatedCount, locked: world.lockedCount })
+            : t(`play.note.${phase}`)}
+        </span>
+      </p>
+      {sealed ? (
+        <div className={readMotion() === "off" ? "seal-banner" : "seal-banner is-on"} role="status">
+          <p className="font-display text-2xl">{t("slip.seal")}</p>
+          <p>{t("play.note.sealed")}</p>
+          <button type="button" className="play-quiet" onClick={() => setSealed(false)}>{t("slip.sealSkip")}</button>
+        </div>
+      ) : null}
+      <button type="button" className="seat-card is-on" onClick={() => onFocusMine?.()}>
+        <Portrait id={me.id} cloth={clothOf(me.factionId)} scale={3} />
+        <span className="seat-copy">
+          <strong>{t("play.you", { name: personName(me.id, locale, me.name) })}</strong>
+          <span>{meta}</span>
+          <span>{t("play.points", { points, used: draft.domestic.length })}</span>
+        </span>
+      </button>
+      {world.turn > 1 && !locked && !reviewing ? (
+        <p className="mt-2">{t("board.wrote", { turn: world.turn - 1, now: world.turn })}</p>
+      ) : null}
+      <GuideBar
+        id={focus}
+        text={guideText}
+        canNext={focus === "who"}
+        onNext={() => guide.write({ cursor: nextGuide(focus === "done" ? "wait" : focus), skipped: false })}
+        onSkip={() => guide.write({ cursor: "done", skipped: true })}
+      />
+
+      {officer ? (
+        <fieldset>
+          <legend className="text-sm">{t("slip.move")}</legend>
+          <MoveOrder world={world} me={me} draft={draft} locked={locked} onChange={(war) => setDraft({ ...draft, war })} />
+        </fieldset>
+      ) : null}
 
       {voting.length > 0 ? (
         <fieldset className="space-y-2">
@@ -387,14 +555,23 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
         </fieldset>
       ))}
 
-      <MotionEditor world={world} me={me} officer={officer} draft={draft} locked={locked} onChange={setDraft} />
-
       <fieldset>
-        <legend className="text-sm">{t("slip.domestic")}</legend>
-        <div className="nes-menu mt-2">
-          {DOMESTIC.filter((item) => !RELIEF_KINDS.has(item.kind) && (item.who === "any" ? true : item.who === "citizen" ? me.kind === "citizen" : officer && me.kind !== "citizen")).map((item) => (
-            <Button key={item.kind} type="button" size="sm" variant={draft.domestic.some((action) => action.kind === item.kind) ? "default" : "outline"} disabled={locked || draft.domestic.length >= points} onClick={() => { blip("move"); addDomestic(item.kind); }}>
-              {t(`act.${item.kind}`)}
+        <legend>{t("play.now")}</legend>
+        <p className="mt-1">{t("play.nowNote")}</p>
+        {draft.domestic.length >= points ? <p>{t("play.pointsFull")}</p> : null}
+        <div className="play-actions">
+          {primaryFor(me).map((kind) => (
+            <Button
+              key={kind}
+              type="button"
+              size="sm"
+              className={focus === "act" && (kind === "farm" || kind === "search") ? "play-suggest" : undefined}
+              variant={draft.domestic.some((action) => action.kind === kind) ? "default" : "outline"}
+              disabled={locked || draft.domestic.length >= points}
+              title={draft.domestic.length >= points ? t("play.pointsFull") : undefined}
+              onClick={() => { blip("move"); addDomestic(kind); }}
+            >
+              {t(`act.${kind}`)}
             </Button>
           ))}
         </div>
@@ -441,6 +618,10 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
         </ul>
       </fieldset>
 
+      <details className="play-more">
+        <summary>{t("play.foldKit")}</summary>
+        <div>
+      <p className="mb-2">{t("play.moreNote")}</p>
       <GearPanel
         kit={world.you.kit}
         locked={locked}
@@ -556,6 +737,8 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
           })}
         </ul>
       </fieldset>
+        </div>
+      </details>
 
       {incoming.length > 0 ? (
         <fieldset className="space-y-2">
@@ -640,6 +823,10 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
         );
       })()}
 
+      <details className="play-more">
+        <summary>{t("play.foldWar")}</summary>
+        <div>
+      <MotionEditor world={world} me={me} officer={officer} draft={draft} locked={locked} onChange={setDraft} />
       {officer || me.office === "wanderer" ? <fieldset className="space-y-2">
         <legend className="text-sm">{t("slip.allegiance")}</legend>
         <p className="text-sm text-muted-foreground">
@@ -820,22 +1007,36 @@ function Orders({ world, onDone }: { world: PublicWorld; onDone: () => void }) {
           />
         </label>
       ) : null}
+        </div>
+      </details>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <aside className={locked ? "play-draft is-sealed" : "play-draft"} aria-label={locked ? t("play.sealedList") : t("play.draftList")}>
+        <h3>{locked ? t("play.sealedList") : t("play.draftList")}</h3>
+        <p>{locked ? t("play.sealedNotResult") : t("play.draftNotResult")}</p>
+        {lines.length === 0 ? <p>{t("play.draftEmpty")}</p> : (
+          <ul>
+            {lines.map((line, index) => <li key={`${line.labelKey}-${index}`}>{t(line.labelKey)}</li>)}
+          </ul>
+        )}
+      </aside>
+      {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
       {locked ? (
-        <Button type="button" size="lg" variant="outline" disabled={pending} onClick={() => void unlock()}>
-          {t("slip.undo")}
+        <Button type="button" size="lg" className="play-submit" variant="outline" disabled={pending} onClick={() => void unlock()}>
+          {t("play.unseal")}
         </Button>
       ) : (
-        <Button type="submit" size="lg" disabled={pending}>
-          {pending ? t("slip.locking") : t("slip.lock")}
+        <Button type="submit" size="lg" className="play-submit" disabled={pending}>
+          {pending ? t("play.sealing") : t("play.sealButton")}
         </Button>
       )}
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        {world.seatedCount < world.config.turn.early_resolve_min_seated
-          ? t("slip.waitSeats", { n: world.config.turn.early_resolve_min_seated })
-          : t("slip.waitLock")}
+      <p className="mt-2">
+        {phase === "waiting" || phase === "sealed"
+          ? t("play.note.waiting", { seated: world.seatedCount, locked: world.lockedCount })
+          : world.seatedCount < world.config.turn.early_resolve_min_seated
+            ? t("slip.waitSeats", { n: world.config.turn.early_resolve_min_seated })
+            : t("slip.waitLock")}
       </p>
+      <button type="button" className="play-quiet" onClick={() => guide.write({ cursor: "who", skipped: false })}>{t("play.guideReplay")}</button>
     </form>
   );
 }

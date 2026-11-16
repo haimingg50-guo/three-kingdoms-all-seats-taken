@@ -6,7 +6,7 @@ import { SoundToggle } from "@/components/sound-toggle";
 import { LOCALES } from "@/i18n/locale";
 import { useI18n } from "@/i18n/provider";
 
-export function SiteHeader({ mark }: { mark?: string }) {
+export function SiteHeader({ mark, compact = false }: { mark?: string; compact?: boolean }) {
   const { t, locale, setLocale } = useI18n();
   return (
     <header className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
@@ -21,8 +21,8 @@ export function SiteHeader({ mark }: { mark?: string }) {
         </span>
       </Link>
       <nav className="flex flex-wrap items-center gap-2">
-        <Link href="/charter" className="nes-choice">{t("nav.charter")}</Link>
-        <Link href="/new" className="nes-choice">{t("nav.new")}</Link>
+        {compact ? null : <Link href="/charter" className="nes-choice">{t("nav.charter")}</Link>}
+        {compact ? null : <Link href="/new" className="nes-choice">{t("nav.new")}</Link>}
         <span className="flex flex-wrap gap-2" role="group" aria-label={t("brand.name")}>
           {LOCALES.map((code) => (
             <button

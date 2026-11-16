@@ -8,6 +8,8 @@ import { Portrait } from "@/components/game/portraits";
 import { MemorialHall } from "@/components/game/memorial-hall";
 import { Slip } from "@/components/game/slip";
 import { Spectacle, readSpectacleMode } from "@/components/game/spectacle";
+import { Reel } from "@/components/game/reel";
+import { readMotion, seenTurnKey, writeMotion, type MotionMode } from "@/components/game/motion";
 import { Cutscene, stageFromEntries } from "@/components/game/stage";
 import { blip, cueForEntry, setScene } from "@/components/game/sfx";
 import { dateLocale, type Locale } from "@/i18n/locale";
@@ -16,6 +18,8 @@ import { cityName, factionName, officeDisplay, personName, profileTitle, renderE
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { presentCues } from "@/engine/cues";
+import type { CueId } from "@/engine/cues";
 import { pickSpectacle, spectacleOutcome } from "@/engine/spectacle";
 import type { SpectacleId } from "@/engine/spectacle";
 import type { PublicWorld } from "@/engine/view";
@@ -110,7 +114,11 @@ export function Board({ worldId }: { worldId: string }) {
   const [notice, setNotice] = useState<{ title: string; lines: string[]; entries: { kind: string; key?: string; text?: string }[]; attackerId?: string; defenderId?: string | null; cloth?: string } | null>(null);
   const [egg, setEgg] = useState<{ id: SpectacleId; outcome: string } | null>(null);
   const [parade, setParade] = useState<Parade | null>(null);
+  const [cityId, setCityId] = useState<string | undefined>(undefined);
+  const [motion, setMotion] = useState<MotionMode>("on");
+  const [reel, setReel] = useState<{ id: CueId; line: string }[] | null>(null);
   const seenTurn = useRef<number | null>(null);
+  const finishReel = useRef<() => void>(() => {});
   const worldRef = useRef(world);
   worldRef.current = world;
 
@@ -140,21 +148,37 @@ export function Board({ worldId }: { worldId: string }) {
     };
   }, [load]);
 
+  useEffect(() => {
+    setMotion(readMotion());
+  }, []);
+
+  useEffect(() => {
+    if (cityId || !world?.you) return;
+    const mine = world.roles.find((role) => role.id === world.you?.roleId);
+    if (mine?.cityId) setCityId(mine.cityId);
+  }, [world, cityId]);
+
   const turnNow = world?.turn;
   useEffect(() => {
     const world = worldRef.current;
     if (!world || world.turn !== turnNow) return;
     const previous = seenTurn.current;
     if (previous === world.turn) return;
+    const seenKey = seenTurnKey(world.id);
     if (previous == null) {
+      seenTurn.current = world.turn;
+      const saved = window.sessionStorage.getItem(seenKey);
+      if (saved == null) window.sessionStorage.setItem(seenKey, String(world.turn));
+      return;
+    }
+    if (window.sessionStorage.getItem(seenKey) === String(world.turn)) {
       seenTurn.current = world.turn;
       return;
     }
-    const mark = window.setTimeout(() => {
-      seenTurn.current = world.turn;
-    }, 0);
+    seenTurn.current = world.turn;
+    window.sessionStorage.setItem(seenKey, String(world.turn));
     const ofTurn = world.chronicle.filter((entry) => entry.turn === previous);
-    const pinnedKinds = new Set(["climate", "disaster", "relief", "mitigate", "highlight", "allegiance_offer", "allegiance_accept", "allegiance_reject", "allegiance_expire", "allegiance_leave", "ballot_open", "ballot_cast", "ballot_result", "ballot_leave"]);
+    const pinnedKinds = new Set(["climate", "disaster", "relief", "mitigate", "highlight", "allegiance_offer", "allegiance_accept", "allegiance_reject", "allegiance_expire", "allegiance_leave", "ballot_open", "ballot_cast", "ballot_result", "ballot_leave", "move"]);
     const pinned = ofTurn.filter((entry) => pinnedKinds.has(entry.kind));
     const rest = ofTurn.filter((entry) => !pinnedKinds.has(entry.kind)).slice(-3);
     const shown = [...pinned, ...rest];
@@ -164,8 +188,10 @@ export function Board({ worldId }: { worldId: string }) {
     if (picked && readSpectacleMode() !== "off") setEgg({ id: picked, outcome: spectacleOutcome(picked, ofTurn) });
     const move = readParade(world, previous);
     const battle = Boolean(move?.clash);
+    const cues = presentCues(ofTurn).map(({ id, entry }) => ({ id, line: renderEntry(entry, locale) }));
     const open = () => {
       setParade(null);
+      setReel(null);
       setNotice({
         title: world.status === "memorial" ? t("status.memorial") : battle ? t("board.noticeBattle") : t("board.noticeTurn", { turn: previous }),
         lines: lines.length > 0 ? lines : [closeText(world.closeReason, locale, t)],
@@ -177,32 +203,41 @@ export function Board({ worldId }: { worldId: string }) {
       const cue = shown.map((entry) => cueForEntry(entry)).find(Boolean);
       blip(cue ?? (battle ? "turn" : "ok"));
     };
+    const mode = readMotion();
     setFlash(true);
     const flashTimer = window.setTimeout(() => setFlash(false), 400);
-    if (!move) {
+    if (mode === "off" || (!move && cues.length === 0)) {
       open();
+      return () => window.clearTimeout(flashTimer);
+    }
+    finishReel.current = open;
+    const afterMap = () => {
+      setParade(null);
+      if (cues.length > 0) setReel(cues);
+      else open();
+    };
+    if (move) {
+      const marchMs = mode === "low" ? 700 : MARCH_MS;
+      const clashMs = move.clash ? (mode === "low" ? 400 : CLASH_MS) : 0;
+      setParade({
+        fromId: move.fromId,
+        toId: move.toId,
+        roleId: move.roleId,
+        defenderId: move.defenderId,
+        factionId: move.factionId,
+        startedAt: performance.now(),
+        marchMs,
+        clashMs,
+      });
+      blip("move");
+      const wait = window.setTimeout(afterMap, marchMs + clashMs);
       return () => {
-        window.clearTimeout(mark);
         window.clearTimeout(flashTimer);
+        window.clearTimeout(wait);
       };
     }
-    setParade({
-      fromId: move.fromId,
-      toId: move.toId,
-      roleId: move.roleId,
-      defenderId: move.defenderId,
-      factionId: move.factionId,
-      startedAt: performance.now(),
-      marchMs: MARCH_MS,
-      clashMs: move.clash ? CLASH_MS : 0,
-    });
-    blip("move");
-    const wait = window.setTimeout(open, MARCH_MS + (move.clash ? CLASH_MS : 0));
-    return () => {
-      window.clearTimeout(mark);
-      window.clearTimeout(flashTimer);
-      window.clearTimeout(wait);
-    };
+    afterMap();
+    return () => window.clearTimeout(flashTimer);
   }, [turnNow, locale, t]);
 
   useEffect(() => {
@@ -218,7 +253,7 @@ export function Board({ worldId }: { worldId: string }) {
 
   return (
     <main>
-      <SiteHeader mark={world ? `${t("board.turn", { turn: world.turn })} · ${skyLine(world.sky, locale)}` : undefined} />
+      <SiteHeader compact />
       {loading && !world ? <p className="px-4 py-10 text-sm">{t("board.loading")}</p> : null}
       {error && !world ? (
         <div className="mx-auto max-w-xl px-4 py-10">
@@ -226,7 +261,8 @@ export function Board({ worldId }: { worldId: string }) {
           <Link href="/" className="mt-4 inline-block text-sm text-primary">{t("board.home")}</Link>
         </div>
       ) : null}
-      {egg && !notice ? <Spectacle id={egg.id} outcome={egg.outcome} onClose={() => setEgg(null)} /> : null}
+      {reel && motion !== "off" ? <Reel cues={reel} mode={motion} onDone={() => finishReel.current()} /> : null}
+      {egg && !notice && !reel ? <Spectacle id={egg.id} outcome={egg.outcome} onClose={() => setEgg(null)} /> : null}
       {notice ? (
         <Cutscene
           title={notice.title}
@@ -239,63 +275,122 @@ export function Board({ worldId }: { worldId: string }) {
         />
       ) : null}
       {world ? (
-        <div className="mx-auto max-w-6xl px-4 pb-16">
-          <div className="nes-hud">
-            <strong>{t("board.turn", { turn: world.turn })}</strong>
+        <div className="play-shell">
+          <div className="play-bar">
+            <strong>{worldName(world.name, locale)}</strong>
+            <span>{t("board.turn", { turn: world.turn })}</span>
             <span>{skyLine(world.sky, locale)}</span>
-            <span>{t("board.nextSky", { sky: skyLine(world.skyNext, locale) })}</span>
             <span>{world.status === "running" ? remain(world.deadline, now, t) : world.status === "memorial" ? t("status.memorial") : t("status.settled")}</span>
             <span>{world.you ? personName(world.you.roleId, locale, world.you.roleName) : t("status.unseated")}</span>
           </div>
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-4xl">{worldName(world.name, locale)}</h1>
-                <span className="font-display text-3xl text-primary">{t("board.turn", { turn: world.turn })}</span>
-                <Badge variant="outline">{profileTitle(world.profile, locale, world.profileTitle)}</Badge>
-                {world.kind === "sandbox" ? <Badge>{t("status.sandbox")}</Badge> : null}
-                {world.experimental ? <Badge variant="secondary">{t("status.experimental")}</Badge> : null}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {world.status === "running" ? remain(world.deadline, now, t) : closeText(world.closeReason, locale, t)} · {t("board.deadline", { when: shanghai(world.deadline, locale, t("time.zone")) })}
-              </p>
-              {world.turn > 1 && world.status === "running" ? (
-                <p className="mt-1 text-sm">{t("board.wrote", { turn: world.turn - 1, now: world.turn })}</p>
-              ) : null}
-            </div>
-            <div className="flex gap-2">
-              <ConfigDialog world={world} />
-              <a className="nes-choice" href={`/api/worlds/${world.id}/export`}>{t("board.export")}</a>
-            </div>
-          </div>
-          {world.kind === "sandbox" ? (
-            <p className="mb-4 border border-border bg-card px-3 py-2 text-sm">
-              {t("board.sandboxNote")}
-            </p>
-          ) : (
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t("board.emptyNote")}
-            </p>
-          )}
           {world.memorial ? <MemorialHall facts={world.memorial} /> : null}
           {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
-          <div className="grid items-start gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <section className="sheet order-2 overflow-hidden lg:order-1">
-              <WorldMap world={world} flash={flash} parade={parade} />
-              <CitySheet world={world} />
-              <DoorPanel world={world} />
+          <div className="play-stage">
+            <section className="play-map sheet">
+              <WorldMap world={world} flash={flash} parade={parade} selectedId={cityId} onSelect={setCityId} />
+              <div className="play-cities" role="tablist" aria-label={t("play.cities")}>
+                {world.cities.map((city) => (
+                  <button
+                    key={city.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={city.id === cityId}
+                    className={city.id === cityId ? "nes-choice is-on" : "nes-choice"}
+                    onClick={() => setCityId(city.id)}
+                  >
+                    {cityName(city.id, locale, city.name)}
+                  </button>
+                ))}
+              </div>
             </section>
-            <section className="sheet order-1 border border-border lg:order-2">
-              <Slip world={world} onDone={() => void load()} />
-            </section>
+            <aside className="play-dock sheet">
+              <FocusCard world={world} cityId={cityId} />
+              <Slip
+                world={world}
+                reviewing={Boolean(notice)}
+                onDone={() => void load()}
+                onFocusMine={() => {
+                  const mine = world.roles.find((role) => role.yours);
+                  if (mine?.cityId) setCityId(mine.cityId);
+                }}
+              />
+            </aside>
           </div>
-          <section className="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-            <Roster world={world} />
-            <Chronicle world={world} />
-          </section>
+          <details className="play-tools">
+            <summary>{t("play.tools")}</summary>
+            <div>
+              <div className="play-tools-row">
+                {(["on", "low", "off"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={motion === mode ? "nes-choice is-on" : "nes-choice"}
+                    onClick={() => {
+                      writeMotion(mode);
+                      setMotion(mode);
+                    }}
+                  >
+                    {t(`motion.${mode}`)}
+                  </button>
+                ))}
+                <ConfigDialog world={world} />
+                <a className="nes-choice" href={`/api/worlds/${world.id}/export`}>{t("board.export")}</a>
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t("board.deadline", { when: shanghai(world.deadline, locale, t("time.zone")) })}
+                {" · "}
+                {t("board.nextSky", { sky: skyLine(world.skyNext, locale) })}
+                {" · "}
+                {profileTitle(world.profile, locale, world.profileTitle)}
+              </p>
+              <details className="play-more">
+                <summary>{t("play.about")}</summary>
+                <div>
+                  <p>{world.kind === "sandbox" ? t("board.sandboxNote") : t("board.emptyNote")}</p>
+                  {world.kind === "sandbox" ? <Badge>{t("status.sandbox")}</Badge> : null}
+                  {world.experimental ? <Badge variant="secondary">{t("status.experimental")}</Badge> : null}
+                </div>
+              </details>
+            </div>
+          </details>
+          <details className="play-fold" key={world.status} {...(world.status !== "running" ? { open: true } : {})}>
+            <summary>{t("play.folds")}</summary>
+            <div>
+              <CitySheet world={world} selectedId={cityId} onSelect={setCityId} />
+              <DoorPanel world={world} />
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <Roster world={world} />
+                <Chronicle world={world} />
+              </div>
+            </div>
+          </details>
         </div>
       ) : null}
     </main>
+  );
+}
+
+function FocusCard({ world, cityId }: { world: PublicWorld; cityId?: string }) {
+  const { t, locale } = useI18n();
+  const city = world.cities.find((item) => item.id === cityId);
+  if (!city) return <p className="play-city">{t("play.pickCity")}</p>;
+  const owner = world.factions.find((faction) => faction.id === city.controllerId);
+  const garrison = world.roles.filter((role) => role.alive && role.cityId === city.id && (role.office === "lord" || role.office === "general" || role.office === "advisor"));
+  const mine = world.roles.find((role) => role.yours);
+  const join = locale === "en" ? ", " : "、";
+  return (
+    <div className="play-city" data-focus-city={city.id}>
+      <h2 className="font-display text-3xl">{cityName(city.id, locale, city.name)}</h2>
+      <p>{owner ? t("map.held", { name: factionName(owner.id, locale, owner.name) }) : t("map.noneHeld")} · {t("city.stats", { morale: city.morale, grain: city.grain, troops: city.troops })}</p>
+      <p>{garrison.length ? t("map.garrison", { names: garrison.map((role) => personName(role.id, locale, role.name)).join(join) }) : t("map.noGarrison")}</p>
+      {mine?.cityId === city.id ? <p className="text-primary">{t("play.youHere")}</p> : null}
+      {mine?.cityId && mine.cityId !== city.id ? (
+        <p data-looking="1">{t("map.looking", {
+          city: cityName(city.id, locale, city.name),
+          home: cityName(mine.cityId, locale, world.cities.find((item) => item.id === mine.cityId)?.name ?? mine.cityId),
+        })}</p>
+      ) : null}
+    </div>
   );
 }
 

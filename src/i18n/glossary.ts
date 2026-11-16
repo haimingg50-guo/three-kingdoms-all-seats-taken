@@ -9,6 +9,7 @@ function row(zh: string, en: string, ja: string, ko: string): NameRow {
 /** 开局写入存档的局名。界面和史书按观看语言显示，存档里的字符串不改。 */
 export const WORLD_NAMES: Record<string, NameRow> = {
   "第一号实验局": row("第一号实验局", "Experiment One", "第一号実験局", "제일호 실험국"),
+  "山河试玩": row("山河试玩", "River trial", "山河の試遊", "산하 시연"),
 };
 
 /** 史书与界面共用的通行写法。随机市民不在表内，四种语言都显示开局生成的名字。 */
@@ -249,10 +250,20 @@ export const REASONS: Record<string, NameRow> = {
 };
 
 export const PROFILES: Record<string, { title: NameRow; question: NameRow; blurb: NameRow }> = {
+  river_board: {
+    title: row("山河试玩", "River trial", "山河の試遊", "산하 시연"),
+    question: row("山河摆在面前时，路还走得通吗？", "With the rivers on the table, do the roads still hold?", "山河を前にして、道はまだ通るか。", "산하를 앞에 두면, 길은 아직 통하는가."),
+    blurb: row(
+      "十二座城按三国城址的相对位置摆。成都不连许昌。一条路是一回合，秦岭和三峡也只算一格。八分钟一回合，两位在席者都锁定后提前结算。不是以日计的经典对照。",
+      "Twelve cities sit where the Three Kingdoms sites sit relative to each other. Chengdu is not next to Xuchang. One road is one turn, Qinling and the gorges included. Eight minutes a turn; two locked seats resolve early. Not the day-long classic control.",
+      "十二城は三国の城址の相対位置に置く。成都は許昌と繋がらない。道一本が一回合。秦嶺も三峡も一マス。八分一回合。在席二人が锁定すれば早く決する。日単位の古典対照ではない。",
+      "열두 성을 삼국 성지의 상대 위치에 둔다. 성도는 허창과 잇지 않는다. 길 하나가 한 회다. 진령과 삼협도 한 칸. 팔 분 한 회. 재석 둘이 잠그면 일찍 결산. 일 단위의 고전 대조가 아니다.",
+    ),
+  },
   tianxia_classic: {
     title: row("经典无剧本", "Classic, no script", "古典・無脚本", "고전, 각본 없음"),
     question: row("在最严格的公理组合下，统一是否可能？", "Under the strictest axioms, can anyone unify?", "最も厳しい公理の下で、統一は可能か。", "가장 엄한 공리 아래, 통일은 가능한가."),
-    blurb: row("全部默认值。回合以日计。这是其他档案的对照组。参照实现的具名历史人物是 20 席，而不是规范草案里的 60。", "All defaults. Turns are measured in days. This is the control. The reference build seats 20 named figures, not the draft's 60.", "既定値のまま。回合は日単位。他の档案の対照。参照実装の具名は 20 席で、草案の 60 ではない。", "기본값. 회는 일 단위. 다른 문서의 대조군. 참조 구현의 기명 인물은 초안 60이 아니라 20석."),
+    blurb: row("全部默认值。回合以日计。城与路用山河图。这是其他档案的对照组。参照实现的具名历史人物是 20 席，而不是规范草案里的 60。", "All defaults. Turns are measured in days. Cities and roads use the river map. This is the control. The reference build seats 20 named figures, not the draft's 60.", "既定値のまま。回合は日単位。城と道は山河図。他の档案の対照。参照実装の具名は 20 席で、草案の 60 ではない。", "기본값. 회는 일 단위. 성과 길은 산하도. 다른 문서의 대조군. 참조 구현의 기명 인물은 초안 60이 아니라 20석."),
   },
   free_talk_control: {
     title: row("自由沟通对照", "Free talk", "自由な対話", "자유 대화"),
@@ -275,8 +286,13 @@ export const PROFILES: Record<string, { title: NameRow; question: NameRow; blurb
     blurb: row("朝议可以修改本局的若干数值。不改仓库里的代码。产出单独标注，不进入标准对照。", "Court may amend a few numbers for this match. The repository stays. The log is marked and kept out of the control set.", "朝議はこの局のいくつかの数値を改められる。倉庫のコードは改めない。記録は別標で、標準対照に入れない。", "조정이 이 판의 몇 수치를 고칠 수 있다. 창고의 코드는 그대로. 기록은 따로 표시하고 표준 대조에 넣지 않는다."),
   },
   tabletop_demo: {
-    title: row("三城窄门", "Tabletop gate", "三城の窄門", "세 성의 좁은 문"),
-    question: row("在一张小得能看完的地图上，窄门是否真的开着？", "On a map small enough to finish, is the narrow gate actually open?", "見切れる地図で、窄門は本当に開いているか。", "끝까지 볼 수 있는 지도에서, 좁은 문은 정말 열려 있는가."),
-    blurb: row("洛阳、许昌、成都、建业。八分钟一回合，两位在席者都锁定后提前结算。用来把规则走通，不是经典对照。", "Luoyang, Xuchang, Chengdu, Jianye. Eight minutes a turn; two locked seats resolve early. A walkthrough, not the classic control.", "洛陽、許昌、成都、建業。八分一回合。在席二人が锁定すれば早く決する。規則を通すための局で、古典対照ではない。", "낙양, 허창, 성도, 건업. 팔 분 한 회. 재석 둘이 잠그면 일찍 결산. 규칙을 밟는 판이지, 고전 대조가 아니다."),
+    title: row("教学沙盘", "Teaching sandbox", "教学砂盤", "학습 사반"),
+    question: row("规则走得通吗？这张图不是中国地理。", "Do the rules run? This picture is not the geography of China.", "規則は通るか。この図は中国の地理ではない。", "규칙은 통하는가. 이 그림은 중국 지리가 아니다."),
+    blurb: row(
+      "只有洛阳、许昌、成都、建业，而且成都紧挨许昌。这是简化教学沙盘，用来看指令，不能拿来认山河。默认试玩不进这一局。",
+      "Only Luoyang, Xuchang, Chengdu and Jianye, and Chengdu sits against Xuchang. A simplified teaching sandbox for reading orders. Do not learn the rivers from it. The default trial does not open this match.",
+      "洛陽、許昌、成都、建業だけで、成都は許昌に接している。指令を見るための簡略な教学砂盤。山河を覚える図ではない。既定の試遊はこの局に入らない。",
+      "낙양, 허창, 성도, 건업뿐이고, 성도가 허창에 붙어 있다. 명령을 보는 단순 학습 사반이다. 산하를 익히는 그림이 아니다. 기본 시연은 이 판으로 들어가지 않는다.",
+    ),
   },
 };

@@ -1,3 +1,4 @@
+import { FORD_PAIRS } from "./land";
 import { hashSeed, mulberry32 } from "./names";
 import { CLASSIC } from "./config";
 import type {
@@ -30,19 +31,8 @@ export const DISASTERS: DisasterName[] = ["旱", "涝", "蝗", "瘟疫"];
 /** 合计行军折损不超过这个比例，避免天气压过出征本身的判断。 */
 export const MARCH_LOSS_CAP = 0.2;
 
-/** 黄河渡口、长江与汉水沿线。手摆地图只认这张表。 */
-export const RIVER_PAIRS: [string, string][] = [
-  ["ye", "luoyang"],
-  ["jinyang", "changan"],
-  ["wuwei", "changan"],
-  ["ye", "xiapi"],
-  ["xiangyang", "jiangling"],
-  ["jiangling", "jianye"],
-  ["xiapi", "jianye"],
-  ["luoyang", "xiangyang"],
-  ["xuchang", "xiangyang"],
-  ["luoyang", "jianye"],
-];
+/** 渡口只认山河图里真正过河的边。山路不算渡口。旧档已写好的 fords 不会在这里被改写。 */
+export const RIVER_PAIRS: [string, string][] = FORD_PAIRS;
 
 export interface SkyReport {
   turn: number;

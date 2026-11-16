@@ -41,54 +41,72 @@ function blank(cols: number, rows: number, fill: string) {
   return Array.from({ length: rows }, () => Array.from({ length: cols }, () => fill));
 }
 
-function stamp(cells: string[][], x: number, y: number, w: number, h: number, tile: string) {
-  for (let yy = y; yy < y + h; yy += 1) {
-    for (let xx = x; xx < x + w; xx += 1) {
-      if (cells[yy]?.[xx] != null) cells[yy]![xx] = tile;
+function clump(cells: string[][], cx: number, cy: number, rx: number, ry: number, tile: string) {
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y += 1) {
+    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x += 1) {
+      if (!cells[y]?.[x]) continue;
+      const nx = rx === 0 ? 0 : (x - cx) / rx;
+      const ny = ry === 0 ? 0 : (y - cy) / ry;
+      if (nx * nx + ny * ny <= 1) cells[y]![x] = tile;
+    }
+  }
+}
+
+function speckle(cells: string[][]) {
+  for (let y = 0; y < cells.length; y += 1) {
+    for (let x = 0; x < (cells[0]?.length ?? 0); x += 1) {
+      if (cells[y]![x] !== "g") continue;
+      const n = Math.imul(x * 17 + y * 13, 374761393) >>> 0;
+      if ((n ^ (n >>> 13)) % 17 === 0) cells[y]![x] = "g2";
     }
   }
 }
 
 function pocketCells(cols: number, rows: number) {
   const cells = blank(cols, rows, "g");
-  stamp(cells, 0, 0, cols, 1, "M");
-  stamp(cells, 0, rows - 1, cols, 1, "M");
-  stamp(cells, 0, 0, 1, rows, "M");
-  stamp(cells, cols - 1, 0, 1, rows, "M");
-  stamp(cells, 1, 1, 22, 2, "M");
-  stamp(cells, 1, 1, 3, 8, "M");
-  stamp(cells, 1, 12, 10, 5, "F");
-  for (let y = 2; y <= 10; y += 1) stamp(cells, 20, y, 2, 1, "W");
-  stamp(cells, 20, 11, cols - 21, rows - 12, "W");
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < cols; x += 1) {
-      if (cells[y]![x] === "g" && (x * 3 + y * 5) % 9 === 0) cells[y]![x] = "g2";
-    }
+  clump(cells, 5, 1, 4, 1.6, "M");
+  clump(cells, 14, 1, 3, 1.4, "M");
+  clump(cells, 2, 8, 1.6, 3, "M");
+  clump(cells, 7, 11.2, 4, 1.2, "M");
+  clump(cells, 16, 12, 3, 1.3, "M");
+  clump(cells, 4, 14.5, 2.4, 1.6, "F");
+  clump(cells, 8, 15, 2, 1.2, "F");
+  clump(cells, 18, 4, 1.4, 1.2, "F");
+  const river = [[21, 3], [21, 4], [22, 5], [22, 6], [21, 7], [22, 8], [23, 9], [24, 10], [25, 11]];
+  for (const [x, y] of river) if (cells[y]?.[x]) cells[y]![x] = "W";
+  for (let y = 2; y < rows - 1; y += 1) {
+    const coast = 27 + ((y * 3) % 5 === 0 ? -1 : (y % 4 === 0 ? 1 : 0));
+    for (let x = coast; x < cols; x += 1) if (cells[y]?.[x]) cells[y]![x] = "W";
   }
+  speckle(cells);
   return cells;
 }
 
 function classicCells(cols: number, rows: number) {
   const cells = blank(cols, rows, "g");
-  stamp(cells, 0, 0, cols, 1, "M");
-  stamp(cells, 0, rows - 1, cols, 1, "M");
-  stamp(cells, 0, 0, 1, rows, "M");
-  stamp(cells, cols - 1, 0, 1, rows, "M");
-  stamp(cells, 1, 1, 8, 6, "M");
-  stamp(cells, 1, 1, cols - 8, 2, "M");
-  stamp(cells, 20, 1, 4, 2, "g");
-  stamp(cells, 6, 12, 8, 2, "M");
-  stamp(cells, 1, 16, 12, 7, "F");
-  stamp(cells, 14, 18, 6, 3, "F");
-  for (let x = 5; x <= 28; x += 1) cells[8]![x] = "W";
-  for (let x = 12; x <= 36; x += 1) if (cells[16]?.[x]) cells[16]![x] = "W";
-  stamp(cells, 34, 4, cols - 34, rows - 5, "W");
-  stamp(cells, 28, 14, 4, 3, "F");
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < cols; x += 1) {
-      if (cells[y]![x] === "g" && (x + y * 2) % 11 === 0) cells[y]![x] = "g2";
-    }
+  clump(cells, 4, 3, 3.2, 2.4, "M");
+  clump(cells, 8, 2, 2.2, 1.6, "M");
+  clump(cells, 14, 1.5, 3, 1.3, "M");
+  clump(cells, 28, 2, 2.5, 1.4, "M");
+  clump(cells, 6, 13, 3, 1.3, "M");
+  clump(cells, 10, 14, 2, 1.2, "M");
+  clump(cells, 3, 19, 2.6, 2.2, "F");
+  clump(cells, 8, 20, 2.2, 1.6, "F");
+  clump(cells, 16, 21, 2, 1.4, "F");
+  clump(cells, 30, 15, 1.8, 1.4, "F");
+  for (let x = 4; x <= 30; x += 1) {
+    const y = 8 + (x % 6 === 0 ? 1 : x % 6 === 3 ? -1 : 0);
+    if (cells[y]?.[x]) cells[y]![x] = "W";
   }
+  for (let x = 12; x <= 34; x += 1) {
+    const y = 17 + (x % 5 === 0 ? -1 : 0);
+    if (cells[y]?.[x] && cells[y]![x] !== "M") cells[y]![x] = "W";
+  }
+  for (let y = 4; y < rows - 1; y += 1) {
+    const coast = 34 + (y % 3 === 0 ? -1 : 0);
+    for (let x = coast; x < cols; x += 1) if (cells[y]?.[x]) cells[y]![x] = "W";
+  }
+  speckle(cells);
   return cells;
 }
 

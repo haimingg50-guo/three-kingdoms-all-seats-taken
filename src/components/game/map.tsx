@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { buildAtlas, roadBetween, type Atlas } from "@/components/game/atlas";
-import { blitBust } from "@/components/game/bust";
-import { TILE, blitCity, blitPass, blitTile, blitWash, cityRank, drawWeather } from "@/components/game/tiles";
-import type { CityWorks } from "@/engine/types";
+import { useEffect, useState } from "react";
+import { mapBoard, namedRoad, readRoad, type RoadKind, type RoadRead } from "@/engine/land";
 import type { PublicWorld } from "@/engine/view";
+import { FordMark, PassGate, RiverBackdrop, Town } from "@/components/game/land-art";
 import { useI18n } from "@/i18n/provider";
 import { cityName, factionName, personName, regionName, skyLine } from "@/i18n/render";
 
@@ -27,82 +25,29 @@ function dye(id: string | null) {
   return "#c4a060";
 }
 
-function besideMountain(atlas: Atlas, x: number, y: number) {
-  return [
-    atlas.cells[y - 1]?.[x],
-    atlas.cells[y + 1]?.[x],
-    atlas.cells[y]?.[x - 1],
-    atlas.cells[y]?.[x + 1],
-  ].includes("M");
-}
+const LABEL_DY: Record<string, number> = {
+  jinyang: -3.6,
+  ye: -3.6,
+  changan: 4.2,
+  luoyang: -3.8,
+  xuchang: 4.2,
+  xiapi: -3.6,
+  nanzheng: 4.2,
+  xiangyang: -3.8,
+  chengdu: -4.2,
+  jiangzhou: -4.2,
+  jiangling: -4.2,
+  jianye: -3.8,
+};
 
-function drawScene(ctx: CanvasRenderingContext2D, world: PublicWorld, atlas: Atlas, frame: number, hideId?: string) {
-  ctx.imageSmoothingEnabled = false;
-  atlas.cells.forEach((row, y) => {
-    row.forEach((kind, x) => {
-      const ground = kind === "C" || kind === "K" ? "g" : kind;
-      blitTile(ctx, ground, x * TILE, y * TILE, frame, world.sky);
-      if ((kind === "R" || kind === "B") && besideMountain(atlas, x, y)) blitPass(ctx, x * TILE, y * TILE);
-    });
-  });
-  for (const city of world.cities) {
-    const at = atlas.pos.get(city.id);
-    if (!at || !city.controllerId) continue;
-    const color = dye(city.controllerId);
-    for (let dy = -2; dy <= 2; dy += 1) {
-      for (let dx = -2; dx <= 2; dx += 1) {
-        const kind = atlas.cells[at.y + dy]?.[at.x + dx];
-        if (kind === "g" || kind === "g2") blitWash(ctx, (at.x + dx) * TILE, (at.y + dy) * TILE, color);
-      }
-    }
-  }
-  for (const city of world.cities) {
-    const at = atlas.pos.get(city.id);
-    if (!at) continue;
-    blitCity(ctx, at.x * TILE, at.y * TILE, cityRank(city.troops, city.isCapital));
-    const people = world.roles.filter((role) => role.alive && role.cityId === city.id && role.id !== hideId);
-    const ordered = [...people.filter((role) => role.office === "lord"), ...people.filter((role) => role.office !== "lord")].slice(0, 2);
-    ordered.forEach((role, index) => {
-      const ox = Math.round(at.x * TILE + (index - (ordered.length - 1) / 2) * 16 - 8);
-      const oy = at.y * TILE - 24;
-      const hurt = !role.alive || (role.reputation ?? 100) < 30;
-      blitBust(ctx, role.id, ox, oy, dye(role.factionId ?? city.controllerId), hurt ? "hurt" : "calm");
-    });
-    paintWorks(ctx, at.x, at.y, city.works);
-    if ((city.works?.plague ?? 0) > 0) {
-      ctx.fillStyle = "#3c9448";
-      ctx.fillRect(at.x * TILE + 12, at.y * TILE, 1, 3);
-      ctx.fillRect(at.x * TILE + 11, at.y * TILE + 1, 3, 1);
-    }
-  }
-}
-
-function paintWorks(ctx: CanvasRenderingContext2D, x: number, y: number, works?: CityWorks) {
-  if (!works) return;
-  const ox = x * TILE;
-  const oy = y * TILE;
-  if (works.dike > 0) {
-    ctx.fillStyle = "#3a68c8";
-    ctx.fillRect(ox, oy + 13, Math.min(16, 4 + works.dike * 4), 3);
-  }
-  if (works.granary > 0) {
-    ctx.fillStyle = "#f0c040";
-    ctx.fillRect(ox + 11, oy, 5, 4);
-  }
-  if (works.clinic > 0) {
-    ctx.fillStyle = "#f4f0dc";
-    ctx.fillRect(ox + 11, oy + 5, 5, 5);
-    ctx.fillStyle = "#d84848";
-    ctx.fillRect(ox + 13, oy + 6, 1, 3);
-    ctx.fillRect(ox + 12, oy + 7, 3, 1);
-  }
-  if (works.canal > 0) {
-    ctx.fillStyle = "#284888";
-    ctx.fillRect(ox, oy + 6, 8, 3);
-  }
+function townRank(troops: number, capital: boolean): 1 | 2 | 3 {
+  if (capital) return 3;
+  if (troops >= 1200) return 2;
+  return 1;
 }
 
 export function paintArrow(ctx: CanvasRenderingContext2D, path: { x: number; y: number }[], index: number) {
+  const TILE = 32;
   ctx.fillStyle = "#f0c040";
   for (let i = 0; i <= index; i += 2) {
     const point = path[i];
@@ -124,120 +69,245 @@ export function paintArrow(ctx: CanvasRenderingContext2D, path: { x: number; y: 
   ctx.fillRect(ox + dx, oy + dy, 1, 1);
 }
 
-export function WorldMap({ world, flash, parade }: { world: PublicWorld; flash?: boolean; parade?: Parade | null }) {
+export function WorldMap({ world, flash, parade, selectedId, onSelect }: { world: PublicWorld; flash?: boolean; parade?: Parade | null; selectedId?: string; onSelect?: (id: string) => void }) {
   const { t, locale } = useI18n();
-  const ref = useRef<HTMLCanvasElement>(null);
-  const base = useRef<HTMLCanvasElement | null>(null);
-  const [frame, setFrame] = useState(0);
-  const atlas = useMemo(() => buildAtlas(world.cities), [world]);
+  const board = mapBoard(world.cities);
+  const you = world.roles.find((role) => role.yours && role.alive);
+  const [now, setNow] = useState(0);
+  const [still, setStill] = useState(false);
+  const [frame, setFrame] = useState<"all" | "you" | "pick">("all");
 
   useEffect(() => {
-    const timer = window.setInterval(() => setFrame((value) => value + 1), 480);
-    return () => window.clearInterval(timer);
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setStill(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, []);
 
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    canvas.width = atlas.cols * TILE;
-    canvas.height = atlas.rows * TILE;
-    if (!base.current) base.current = document.createElement("canvas");
-    base.current.width = canvas.width;
-    base.current.height = canvas.height;
-    const ctx = base.current.getContext("2d");
-    if (!ctx) return;
-    drawScene(ctx, world, atlas, frame, parade ? parade.roleId : undefined);
-    const view = canvas.getContext("2d");
-    if (!view || parade) return;
-    view.imageSmoothingEnabled = false;
-    view.drawImage(base.current, 0, 0);
-  }, [atlas, frame, parade, world]);
-
-  useEffect(() => {
-    if (!parade) return;
-    const canvas = ref.current;
+    if (!parade || still) return;
     let raf = 0;
     const loop = () => {
-      const view = canvas?.getContext("2d");
-      const still = base.current;
-      if (!view || !still || !canvas) return;
-      view.imageSmoothingEnabled = false;
-      view.drawImage(still, 0, 0);
-      const elapsed = performance.now() - parade.startedAt;
-      const cloth = dye(parade.factionId);
-      const path = roadBetween(atlas, parade.fromId, parade.toId);
-      if (elapsed < parade.marchMs && path.length > 1) {
-        const t = elapsed / parade.marchMs;
-        const index = Math.min(path.length - 1, Math.floor(t * (path.length - 1)));
-        const at = path[index]!;
-        blitBust(view, parade.roleId, at.x * TILE - 8, at.y * TILE - 24, cloth);
-        paintArrow(view, path, index);
-        const behind = path[Math.max(0, index - 1)];
-        if (behind) blitBust(view, "garrison", behind.x * TILE - 4, behind.y * TILE - 20, cloth);
-      } else {
-        const at = atlas.pos.get(parade.toId);
-        if (at) {
-          const swing = Math.sin((elapsed / 120) * Math.PI) * 6;
-          blitBust(view, parade.roleId, at.x * TILE - 20 - swing, at.y * TILE - 24, cloth, "angry");
-          const defender = world.roles.find((role) => role.id === parade.defenderId);
-          blitBust(view, parade.defenderId ?? "garrison", at.x * TILE + 8 + swing, at.y * TILE - 24, dye(defender?.factionId ?? null), "hurt");
-          paintArrow(view, path, path.length - 1);
-          if (Math.floor(elapsed / 80) % 2 === 0) {
-            view.fillStyle = "#f0c040";
-            view.fillRect(at.x * TILE + 6, at.y * TILE - 4, 3, 3);
-            view.fillStyle = "#d84848";
-            view.fillRect(at.x * TILE + 10, at.y * TILE - 8, 3, 3);
-          }
-        }
-      }
+      setNow(performance.now());
       raf = window.requestAnimationFrame(loop);
     };
     raf = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(raf);
-  }, [atlas, parade, world.roles]);
+  }, [parade, still]);
 
-  const skyRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = skyRef.current;
-    const terrain = ref.current;
-    if (!canvas || !terrain || !world.sky) return;
-    let raf = 0;
-    const loop = () => {
-      if (canvas.width !== terrain.width || canvas.height !== terrain.height) {
-        canvas.width = terrain.width;
-        canvas.height = terrain.height;
-      }
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawWeather(ctx, canvas.width, canvas.height, world.sky, Math.floor(performance.now() / 90));
-      }
-      raf = window.requestAnimationFrame(loop);
-    };
-    raf = window.requestAnimationFrame(loop);
-    return () => window.cancelAnimationFrame(raf);
-  }, [world.sky, atlas.cols, atlas.rows]);
+  function moveCity(delta: number) {
+    if (!onSelect) return;
+    const index = world.cities.findIndex((city) => city.id === selectedId);
+    const count = world.cities.length;
+    const next = world.cities[(index < 0 ? (delta > 0 ? 0 : count - 1) : (index + delta + count) % count)];
+    if (next) onSelect(next.id);
+  }
+
+  const seen = new Set<string>();
+  const roads: { key: string; x1: number; y1: number; x2: number; y2: number; kind: RoadKind; note: string; read: RoadRead }[] = [];
+  for (const city of world.cities) {
+    for (const link of city.links) {
+      const key = [city.id, link].sort().join(":");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const other = world.cities.find((item) => item.id === link);
+      if (!other) continue;
+      const named = board === "rivers" ? namedRoad(city.id, other.id) : null;
+      const friend = Boolean(
+        you?.cityId &&
+        you.factionId &&
+        ((city.id === you.cityId && other.controllerId === you.factionId) || (other.id === you.cityId && city.controllerId === you.factionId)),
+      );
+      roads.push({
+        key,
+        x1: city.x,
+        y1: city.y,
+        x2: other.x,
+        y2: other.y,
+        kind: named?.kind ?? "road",
+        note: named?.note ?? "",
+        read: readRoad({
+          a: city.id,
+          b: other.id,
+          friend,
+          stationId: you?.cityId ?? null,
+          selectedId: selectedId ?? null,
+        }),
+      });
+    }
+  }
+
+  const from = parade ? world.cities.find((city) => city.id === parade.fromId) : undefined;
+  const to = parade ? world.cities.find((city) => city.id === parade.toId) : undefined;
+  let token: { x: number; y: number; clash: boolean } | null = null;
+  if (parade && from && to) {
+    const elapsed = still ? parade.marchMs : Math.max(0, (now || performance.now()) - parade.startedAt);
+    const clash = elapsed >= parade.marchMs;
+    const t = clash ? 1 : Math.min(1, elapsed / Math.max(1, parade.marchMs));
+    token = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, clash };
+  }
+
+  const base = board === "rivers" ? t("map.hop") : board === "teaching" ? t("map.teaching") : t("map.saved");
+  const home = you?.cityId ? world.cities.find((city) => city.id === you.cityId) : undefined;
+  const looking = selectedId && you?.cityId && selectedId !== you.cityId ? world.cities.find((city) => city.id === selectedId) : undefined;
+  const moveCount = roads.filter((road) => road.read === "move").length;
+  const extra = board !== "rivers" || !you?.cityId
+    ? ""
+    : looking
+      ? t("map.looking", {
+          city: cityName(looking.id, locale, looking.name),
+          home: home ? cityName(home.id, locale, home.name) : you.cityId,
+        })
+      : moveCount
+        ? t("map.moveYes")
+        : t("map.moveNo");
+
+  function frameOf(id: string | null | undefined) {
+    const city = id ? world.cities.find((item) => item.id === id) : undefined;
+    if (!city) return "0 0 100 84";
+    const width = 38;
+    const height = 32;
+    const x = Math.max(0, Math.min(100 - width, city.x - width / 2));
+    const y = Math.max(0, Math.min(84 - height, city.y - height / 2));
+    return `${x} ${y} ${width} ${height}`;
+  }
+  const view = frame === "you" ? frameOf(you?.cityId) : frame === "pick" ? frameOf(selectedId) : "0 0 100 84";
+  const ink = { move: "#f0c040", look: "#f7f3e4", plain: "#9a8668" } as const;
+  const weight = { move: 1.15, look: 0.78, plain: 0.4 } as const;
 
   return (
-    <div className={`pixel-map${flash ? " nes-flash" : ""}`}>
-      <canvas ref={ref} role="img" aria-label={t("map.aria")} />
-      <canvas ref={skyRef} className="sky-layer" aria-hidden="true" />
-      {world.sky ? <span className="map-sky">{skyLine(world.sky, locale)}</span> : null}
-      {world.cities.map((city) => {
-        const at = atlas.pos.get(city.id);
-        if (!at) return null;
-        const owner = world.factions.find((faction) => faction.id === city.controllerId);
-        return (
-          <span
-            key={city.id}
-            className="map-label"
-            style={{ left: `${((at.x + 0.5) / atlas.cols) * 100}%`, top: `${((at.y + 1.2) / atlas.rows) * 100}%` }}
-          >
-            {cityName(city.id, locale, city.name)}
-            <small>{owner ? factionName(owner.id, locale, owner.name) : t("status.empty")} · {t("map.troops", { n: city.troops })}</small>
-          </span>
-        );
-      })}
+    <div>
+      <div className="land-bar">
+        <div className="land-tools">
+          <button type="button" className="nes-choice" data-map="all" aria-pressed={frame === "all"} onClick={() => setFrame("all")}>{t("map.fit")}</button>
+          <button type="button" className="nes-choice" data-map="you" aria-pressed={frame === "you"} disabled={!you?.cityId} onClick={() => { setFrame("you"); if (you?.cityId) onSelect?.(you.cityId); }}>{t("map.station")}</button>
+          <button type="button" className="nes-choice" data-map="pick" aria-pressed={frame === "pick"} disabled={!selectedId} onClick={() => setFrame("pick")}>{t("map.detail")}</button>
+        </div>
+        <p className="land-note">
+          <span>{base}</span>
+          {extra ? <span data-map-note="1">{extra}</span> : null}
+        </p>
+      </div>
+      <div
+        className={`pixel-map land-map${flash ? " nes-flash" : ""}`}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+            event.preventDefault();
+            moveCity(1);
+          }
+          if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+            event.preventDefault();
+            moveCity(-1);
+          }
+        }}
+      >
+        <div className="land-stage">
+          <svg viewBox={view} data-frame={frame} role="img" aria-label={t("map.aria")}>
+            {board === "rivers" ? <RiverBackdrop /> : <rect width="100" height="84" fill="#1b2820" />}
+            {(["plain", "look", "move"] as const).map((read) =>
+              roads.filter((road) => road.read === read).map((road) => (
+                <g key={road.key}>
+                  <line
+                    x1={road.x1}
+                    y1={road.y1}
+                    x2={road.x2}
+                    y2={road.y2}
+                    stroke={read === "move" ? "#6a5018" : "#3a342c"}
+                    strokeWidth={weight[read] + 0.55}
+                    strokeLinecap="round"
+                  />
+                  <line
+                    data-road={road.key}
+                    data-read={road.read}
+                    x1={road.x1}
+                    y1={road.y1}
+                    x2={road.x2}
+                    y2={road.y2}
+                    stroke={ink[read]}
+                    strokeWidth={weight[read]}
+                    strokeLinecap="round"
+                  />
+                </g>
+              )),
+            )}
+            {roads.filter((road) => road.kind === "ford").map((road) => (
+              <FordMark key={`${road.key}-ford`} x1={road.x1} y1={road.y1} x2={road.x2} y2={road.y2} />
+            ))}
+            {roads.filter((road) => road.kind === "pass").map((road) => (
+              <PassGate key={`${road.key}-pass`} x={(road.x1 + road.x2) / 2} y={(road.y1 + road.y2) / 2} />
+            ))}
+            {roads.filter((road) => road.read !== "plain" && road.note).map((road) => {
+              const dx = road.x2 - road.x1;
+              const dy = road.y2 - road.y1;
+              const len = Math.hypot(dx, dy) || 1;
+              return (
+                <text
+                  key={`${road.key}-note`}
+                  data-road-note={road.note}
+                  x={(road.x1 + road.x2) / 2 + (-dy / len) * 2.6}
+                  y={(road.y1 + road.y2) / 2 + (dx / len) * 2.6}
+                  textAnchor="middle"
+                  fill={ink[road.read]}
+                  fontSize="2.05"
+                  stroke="#14121a"
+                  strokeWidth="0.45"
+                  style={{ paintOrder: "stroke" }}
+                  pointerEvents="none"
+                >
+                  {road.note}
+                </text>
+              );
+            })}
+            {world.cities.map((city) => {
+              const rank = townRank(city.troops, city.isCapital);
+              const selected = city.id === selectedId;
+              const mine = you?.cityId === city.id;
+              const held = world.factions.find((faction) => faction.id === city.controllerId);
+              const above = (LABEL_DY[city.id] ?? 1) < 0;
+              const gap = rank === 3 ? 4.15 : rank === 2 ? 3.55 : 2.95;
+              const nameY = above ? city.y - gap : city.y + gap;
+              const youY = above ? nameY - 2.35 : city.y - gap - 0.15;
+              return (
+                <g key={city.id} data-city={city.id} onClick={() => onSelect?.(city.id)} style={{ cursor: onSelect ? "pointer" : undefined }}>
+                  <rect x={city.x - 4.2} y={city.y - 3.6} width="8.4" height="7.2" fill="transparent" />
+                  <g transform={`translate(${city.x} ${city.y})`}>
+                    <Town rank={rank} fill={dye(city.controllerId)} selected={selected} mine={mine} />
+                  </g>
+                  <text
+                    x={city.x}
+                    y={nameY}
+                    textAnchor="middle"
+                    fill={selected ? "#f0c040" : "#f7f1e2"}
+                    fontSize="2.2"
+                    stroke="#1a1814"
+                    strokeWidth="0.45"
+                    dominantBaseline={above ? "text-after-edge" : "text-before-edge"}
+                    style={{ paintOrder: "stroke" }}
+                  >
+                    {cityName(city.id, locale, city.name)}
+                  </text>
+                  {mine ? (
+                    <text x={city.x} y={youY} textAnchor="middle" fill="#f0c040" fontSize="1.9" stroke="#1a1814" strokeWidth="0.4" dominantBaseline={above ? "text-after-edge" : "text-before-edge"} style={{ paintOrder: "stroke" }}>
+                      {t("map.you")}
+                    </text>
+                  ) : null}
+                  {selected ? (
+                    <title>{`${cityName(city.id, locale, city.name)} · ${held ? factionName(held.id, locale, held.name) : t("map.noneHeld")} · ${t("map.troops", { n: city.troops })}`}</title>
+                  ) : null}
+                </g>
+              );
+            })}
+            {token ? (
+              <g aria-hidden="true">
+                <circle cx={token.x} cy={token.y} r={token.clash ? 1.7 : 1.35} fill={dye(parade?.factionId ?? null)} stroke="#f4f0dc" strokeWidth="0.35" />
+              </g>
+            ) : null}
+          </svg>
+          {world.sky ? <span className="map-sky">{skyLine(world.sky, locale)}</span> : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -281,9 +351,14 @@ export function DoorPanel({ world }: { world: PublicWorld }) {
   );
 }
 
-export function CitySheet({ world }: { world: PublicWorld }) {
+export function CitySheet({ world, selectedId, onSelect }: { world: PublicWorld; selectedId?: string; onSelect?: (id: string) => void }) {
   const { t, locale } = useI18n();
-  const [id, setId] = useState(world.cities[0]?.id ?? "");
+  const [localId, setLocalId] = useState(world.cities[0]?.id ?? "");
+  const id = selectedId || localId;
+  const setId = (next: string) => {
+    setLocalId(next);
+    onSelect?.(next);
+  };
   const city = world.cities.find((item) => item.id === id) ?? world.cities[0];
   const works = city?.works;
   const join = locale === "en" ? ", " : "、";

@@ -19,7 +19,7 @@ export interface HomeWorld {
 
 export function HomeView({ worlds, failed }: { worlds: HomeWorld[]; failed: boolean }) {
   const { t, locale } = useI18n();
-  const demo = worlds.find((world) => world.id === "demo");
+  const start = worlds.find((world) => world.id === "land") ?? worlds.find((world) => world.profile === "river_board");
   const status = (value: string) => {
     if (value === "memorial") return t("status.memorial");
     if (value === "settled") return t("status.settled");
@@ -36,7 +36,7 @@ export function HomeView({ worlds, failed }: { worlds: HomeWorld[]; failed: bool
         <TitleWordmark />
         <p className="mt-4">{t("home.tagline")}</p>
         <div className="nes-menu mx-auto mt-6 max-w-sm text-left">
-          <Link href="/world/demo" className="nes-choice is-on">{t("home.start")}</Link>
+          <Link href={start ? `/world/${start.id}` : "/new"} className="nes-choice is-on">{t("home.start")}</Link>
           <Link href="/look" className="nes-choice">{t("home.look")}</Link>
           <Link href="/new" className="nes-choice">{t("home.sandbox")}</Link>
           <Link href="/charter" className="nes-choice">{t("home.charter")}</Link>
@@ -44,9 +44,9 @@ export function HomeView({ worlds, failed }: { worlds: HomeWorld[]; failed: bool
         <div className="nes-window mt-6 p-4 text-left">
           <p>{t("home.blurb")}</p>
           {failed ? <p className="mt-3">{t("home.failed")}</p> : null}
-          {demo ? (
+          {start ? (
             <p className="mt-3">
-              {t("home.demoLine", { name: worldName(demo.name, locale), turn: demo.turn, status: status(demo.status), seated: demo.seatedCount })}
+              {t("home.demoLine", { name: worldName(start.name, locale), turn: start.turn, status: status(start.status), seated: start.seatedCount })}
             </p>
           ) : null}
           <ul className="mt-3 space-y-2">

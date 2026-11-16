@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const created = await createInstance({
       actorHash: await actorHash(request),
       name: body.name ?? "",
-      profile: body.profile ?? "tabletop_demo",
+      profile: body.profile ?? "river_board",
       kind: body.kind === "experiment" ? "experiment" : "sandbox",
       acknowledgeSeason: body.acknowledgeSeason,
     });

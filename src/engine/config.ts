@@ -163,12 +163,39 @@ export interface ProfileInfo {
   patch: unknown;
 }
 
+export const DEFAULT_PROFILE = "river_board";
+
 export const PROFILES: ProfileInfo[] = [
+  {
+    id: "river_board",
+    title: "山河试玩",
+    question: "山河摆在面前时，路还走得通吗？",
+    blurb: "十二座城按三国城址的相对位置摆。成都不连许昌。一条路是一回合，秦岭和三峡也只算一格。八分钟一回合，两位在席者都锁定后提前结算。不是以日计的经典对照。",
+    patch: {
+      world: {
+        city_count: 12,
+        role_pool_size: 16,
+        reserve_roles: 4,
+        map_topology: "historic_13zhou",
+      },
+      turn: {
+        duration_hours: 1,
+        laboratory_clock: true,
+        duration_minutes: 8,
+        early_resolve: true,
+        early_resolve_min_seated: 2,
+      },
+      endgame: {
+        unify: { stable_turns: 2 },
+        consolidation_turns: 2,
+      },
+    },
+  },
   {
     id: "tianxia_classic",
     title: "经典无剧本",
     question: "在最严格的公理组合下，统一是否可能？",
-    blurb: "全部默认值。回合以日计。这是其他档案的对照组。参照实现的具名历史人物是 20 席，而不是规范草案里的 60。",
+    blurb: "全部默认值。回合以日计。城与路用山河图。这是其他档案的对照组。参照实现的具名历史人物是 20 席，而不是规范草案里的 60。",
     patch: {},
   },
   {
@@ -205,9 +232,9 @@ export const PROFILES: ProfileInfo[] = [
   },
   {
     id: "tabletop_demo",
-    title: "三城窄门",
-    question: "在一张小得能看完的地图上，窄门是否真的开着？",
-    blurb: "洛阳、许昌、成都、建业。八分钟一回合，两位在席者都锁定后提前结算。用来把规则走通，不是经典对照。",
+    title: "教学沙盘",
+    question: "规则走得通吗？这张图不是中国地理。",
+    blurb: "只有洛阳、许昌、成都、建业，而且成都紧挨许昌。这是简化教学沙盘，用来看指令，不能拿来认山河。默认试玩不进这一局。",
     patch: {
       world: {
         city_count: 4,
@@ -330,8 +357,8 @@ function validate(
   if (c.world.map_topology === "three_kingdoms_pocket" && c.world.city_count !== 4) {
     fail(errors, "三城窄门地图固定为 4 座城");
   }
-  if (c.world.map_topology === "historic_13zhou" && (c.world.city_count < 8 || c.world.city_count > 13)) {
-    fail(errors, "十三州抽象图在参照实现里使用 8–13 座州");
+  if (c.world.map_topology === "historic_13zhou" && (c.world.city_count < 8 || c.world.city_count > 12)) {
+    fail(errors, "山河图在参照实现里使用 8–12 座城");
   }
   if (c.world.role_pool_size < 12 + c.world.reserve_roles) {
     fail(errors, "角色池装不下 12 名在职人物加上声明的在野席");

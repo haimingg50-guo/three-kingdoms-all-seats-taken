@@ -1,5 +1,6 @@
 import { applyFords, climateSeedFor, plannedBounty } from "./climate";
 import { buildConfig, turnDurationMs } from "./config";
+import { riverBoard } from "./land";
 import { citizenName, hashSeed, mulberry32 } from "./names";
 import type { City, Faction, Role, WorldKind, WorldState } from "./types";
 
@@ -106,6 +107,7 @@ function circle(i: number, n: number): { x: number; y: number } {
   return { x: 50 + Math.cos(ang) * 34, y: 50 + Math.sin(ang) * 32 };
 }
 
+/** 教学沙盘。成都紧挨许昌，故意不是中国地理。默认试玩不走这里。 */
 function pocketMap(): { cities: City[]; homes: Record<string, string> } {
   const cities: City[] = [
     { id: "luoyang", name: "洛阳", region: "司隶", isCapital: true, hasSeal: true, controllerId: null, grain: 700, gold: 600, troops: 1000, morale: 48, links: ["xuchang", "jianye", "chengdu"], fords: [], x: 50, y: 38 },
@@ -177,47 +179,15 @@ function generatedMap(count: number, seed: number): { cities: City[]; homes: Rec
   };
 }
 
-const CLASSIC_LAYOUT: { id: string; name: string; region: string; x: number; y: number; capital?: boolean }[] = [
-  { id: "luoyang", name: "洛阳", region: "司隶", x: 46, y: 42, capital: true },
-  { id: "xuchang", name: "许昌", region: "豫州", x: 62, y: 52 },
-  { id: "chengdu", name: "成都", region: "益州", x: 22, y: 78 },
-  { id: "jianye", name: "建业", region: "扬州", x: 82, y: 70 },
-  { id: "changan", name: "长安", region: "司隶", x: 24, y: 40 },
-  { id: "ye", name: "邺城", region: "冀州", x: 46, y: 24 },
-  { id: "xiapi", name: "下邳", region: "徐州", x: 76, y: 38 },
-  { id: "xiangyang", name: "襄阳", region: "荆州", x: 46, y: 64 },
-  { id: "jiangling", name: "江陵", region: "荆州", x: 58, y: 78 },
-  { id: "beiping", name: "北平", region: "幽州", x: 58, y: 12 },
-  { id: "jinyang", name: "晋阳", region: "并州", x: 30, y: 16 },
-  { id: "wuwei", name: "武威", region: "凉州", x: 12, y: 24 },
-  { id: "kuaiji", name: "会稽", region: "扬州", x: 90, y: 82 },
-];
-
-const CLASSIC_LINKS: Record<string, string[]> = {
-  luoyang: ["changan", "xuchang", "ye", "xiangyang"],
-  changan: ["luoyang", "jinyang", "wuwei", "chengdu"],
-  xuchang: ["luoyang", "xiapi", "xiangyang"],
-  ye: ["luoyang", "beiping", "jinyang", "xiapi"],
-  xiapi: ["ye", "xuchang", "jianye"],
-  beiping: ["ye", "jinyang"],
-  jinyang: ["beiping", "ye", "changan", "wuwei"],
-  wuwei: ["jinyang", "changan"],
-  chengdu: ["changan", "xiangyang", "jiangling"],
-  xiangyang: ["luoyang", "xuchang", "chengdu", "jiangling"],
-  jiangling: ["xiangyang", "chengdu", "jianye"],
-  jianye: ["xiapi", "jiangling", "kuaiji"],
-  kuaiji: ["jianye"],
-};
-
 function classicMap(count: number): { cities: City[]; homes: Record<string, string> } {
-  const picked = CLASSIC_LAYOUT.slice(0, Math.max(3, count));
-  const ids = new Set(picked.map((city) => city.id));
-  const wei = ids.has("xuchang") ? "xuchang" : picked[1]!.id;
-  const shu = ids.has("chengdu") ? "chengdu" : picked[2]!.id;
-  const wu = ids.has("jianye") ? "jianye" : picked[Math.min(3, picked.length - 1)]!.id;
+  const board = riverBoard(count);
+  const ids = new Set(board.cities.map((city) => city.id));
+  const wei = ids.has("xuchang") ? "xuchang" : board.cities[1]!.id;
+  const shu = ids.has("chengdu") ? "chengdu" : board.cities[2]!.id;
+  const wu = ids.has("jianye") ? "jianye" : board.cities[Math.min(3, board.cities.length - 1)]!.id;
   const homes = { wei, shu, wu };
   const troops: Record<string, number> = { [wei]: 1500, [shu]: 1400, [wu]: 1500 };
-  const cities: City[] = picked.map((city) => ({
+  const cities: City[] = board.cities.map((city) => ({
     id: city.id,
     name: city.name,
     region: city.region,
@@ -228,7 +198,7 @@ function classicMap(count: number): { cities: City[]; homes: Record<string, stri
     gold: city.capital ? 600 : 420,
     troops: city.capital ? 1000 : troops[city.id] ?? 850,
     morale: city.capital ? 48 : troops[city.id] ? 70 : 60,
-    links: (CLASSIC_LINKS[city.id] ?? []).filter((id) => ids.has(id) && id !== city.id),
+    links: (board.links[city.id] ?? []).filter((id) => ids.has(id) && id !== city.id),
     fords: [],
     x: city.x,
     y: city.y,

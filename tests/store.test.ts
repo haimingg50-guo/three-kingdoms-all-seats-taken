@@ -49,6 +49,17 @@ describe("存档", () => {
     assert.equal(/delete\s+from\s+events/i.test(text + db), false);
   });
 
+  it("山河试玩可以打开，旧的教学沙盘仍留着假连线", async () => {
+    const land = await store.viewWorld("land", "actor-land");
+    assert.equal(land.name, "山河试玩");
+    assert.equal(land.profile, "river_board");
+    assert.equal(land.cities.some((city) => city.id === "nanzheng"), true);
+    const chengdu = land.cities.find((city) => city.id === "chengdu");
+    assert.equal(chengdu?.links.includes("xuchang"), false);
+    const demo = await store.viewWorld("demo", "actor-land");
+    assert.equal(demo.cities.find((city) => city.id === "chengdu")?.links.includes("xuchang"), true);
+  });
+
   it("沙盘可以换席，实验局不行", async () => {
     const sandbox = await store.findOwnSandbox("actor-a");
     assert.ok(sandbox);
